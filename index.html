@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Worder — Word Rearranger</title>
-<meta name="description" content="Paste any text, break it into words, and drag them around to compose something new. Worder detects meter, rhyme schemes, and over 100 poetic forms as you write — from haiku to villanelles.">
-<meta property="og:title" content="Worder — Word Rearranger">
-<meta property="og:description" content="Paste any text, break it into words, and rearrange them into poetry. Live meter, rhyme, and poetic form detection.">
+<title>Tessera — Word Rearranger</title>
+<meta name="description" content="Paste any text, break it into word tiles, and drag them around to compose something new. Tessera detects meter, rhyme schemes, and over 100 poetic forms as you write — from haiku to villanelles.">
+<meta property="og:title" content="Tessera — Word Rearranger">
+<meta property="og:description" content="Paste any text, break it into word tiles, and rearrange them into poetry. Live meter, rhyme, and poetic form detection.">
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#1a1a1a">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -443,6 +443,65 @@
   }
   .help-btn:hover { background: #4a4a4a; color: #d4a574; }
 
+  .canvas-status {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    padding: 10px 16px 8px;
+    display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap;
+    font-family: -apple-system, system-ui, sans-serif;
+    font-size: 11px;
+    color: #999;
+    background: linear-gradient(transparent, rgba(26, 26, 26, 0.92) 45%);
+    pointer-events: none;
+  }
+  .canvas-status:empty { display: none; }
+  .canvas-status-form {
+    color: #d4a574;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .mobile-paste-btn {
+    display: none;
+    position: absolute;
+    top: 10px; left: 12px;
+    padding: 8px 14px;
+    background: #3a3a3a; color: #d4a574;
+    border-radius: 4px;
+    z-index: 50;
+  }
+
+  /* ---------- MOBILE LAYOUT ---------- */
+  @media (max-width: 720px) {
+    body { flex-direction: column; }
+    .column { height: auto; min-height: 0; }
+
+    .composition-column { order: 1; flex: 1; }
+    .bank-column {
+      order: 2;
+      width: 100%; height: 38vh; flex: none;
+      border-top: 1px solid #333; border-right: none;
+    }
+
+    /* The paste column becomes a full-screen panel; "collapsed" hides it
+       entirely and the floating Paste button brings it back. */
+    .paste-column {
+      position: fixed; inset: 0;
+      width: 100%; height: 100%;
+      z-index: 900;
+      transition: none;
+    }
+    .paste-column.collapsed { display: none; }
+    .paste-column .expand-strip { display: none !important; }
+    .paste-column .paste-content { overflow-y: auto; }
+
+    .mobile-paste-btn { display: inline-flex; }
+    textarea { height: 140px; }
+    .palette { flex-wrap: nowrap; overflow-x: auto; }
+  }
+
   .help-overlay {
     position: fixed; inset: 0;
     background: rgba(0, 0, 0, 0.65);
@@ -516,7 +575,7 @@
   <div class="col-header">
     <div class="col-titles">
       <div class="col-title">Word bank</div>
-      <div class="col-subtitle">drag words to the right</div>
+      <div class="col-subtitle">drag words onto the canvas</div>
     </div>
   </div>
   <div class="section bank-section">
@@ -547,26 +606,28 @@
 
 <!-- ============== COMPOSITION COLUMN ============== -->
 <div class="column composition-column">
-  <button class="help-btn" onclick="showHelp()" title="How Worder works">?</button>
+  <button class="mobile-paste-btn" onclick="togglePasteColumn()">&#9998; Paste</button>
+  <button class="help-btn" onclick="showHelp()" title="How Tessera works">?</button>
   <div class="canvas" id="canvas">
     <div class="hint" id="hint">
       Drag words here to compose
       <span class="small">Drop near existing words to insert • Drop 3+ lines below to start a new paragraph</span>
     </div>
   </div>
+  <div class="canvas-status" id="canvasStatus"></div>
 </div>
 
 <!-- ============== HELP OVERLAY ============== -->
 <div class="help-overlay" id="helpOverlay" onclick="if (event.target === this) dismissHelp()">
   <div class="help-card">
-    <div class="help-title">Worder</div>
-    <div class="help-tagline">Take words apart. Put them back together, differently.</div>
+    <div class="help-title">Tessera</div>
+    <div class="help-tagline">Every word a tile. Every poem a mosaic.</div>
     <ol class="help-steps">
-      <li><strong>Paste</strong> any text in the left column, then <em>Break into words</em> (or <em>Break into lines</em>). Every word becomes a tile in the bank.</li>
+      <li><strong>Paste</strong> any text in the Paste panel, then <em>Break into words</em> (or <em>Break into lines</em>). Every word becomes a tile in the bank.</li>
       <li><strong>Drag</strong> tiles onto the canvas to compose. Drop between words to insert, drop well below the last line to start a new stanza, and drag a tile off the canvas to send it back to the bank.</li>
       <li><strong>Shape it.</strong> Double-click any tile to edit it, grab punctuation from the unlimited palette, and try <em>Match source meter</em> to compose into the syllable and rhyme scaffold of your source text.</li>
     </ol>
-    <div class="help-note">Your work saves automatically in this browser — close the tab and pick up where you left off. As you write, Worder counts syllables and recognizes 100+ poetic forms, from haiku to villanelles.</div>
+    <div class="help-note">Your work saves automatically in this browser — close the tab and pick up where you left off. As you write, Tessera counts syllables and recognizes 100+ poetic forms, from haiku to villanelles.</div>
     <button class="btn-primary btn-block" onclick="dismissHelp()">Start rearranging</button>
   </div>
 </div>
@@ -1193,6 +1254,7 @@
   let tempBreak = null;
 
   const $ = (id) => document.getElementById(id);
+  const isMobile = () => window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
 
   function initPalette() {
     const palette = $('palette');
@@ -1378,6 +1440,7 @@
     bank.appendChild(frag);
     sortBank();
     updateCounter();
+    if (isMobile()) $('pasteColumn').classList.add('collapsed');
   }
 
   // Break the pasted text into whole lines instead of individual words.
@@ -1423,6 +1486,7 @@
     bank.appendChild(frag);
     sortBank();
     updateCounter();
+    if (isMobile()) $('pasteColumn').classList.add('collapsed');
   }
 
   // Tokenize the source text into words and sentence-boundary markers, then
@@ -1592,6 +1656,7 @@
     updateSentence();
     updateMeterCounts();
     updateCounter();
+    updateCanvasStatus();
     const hasContent = canvas.querySelectorAll('.word-tile').length > 0 ||
                        canvas.querySelectorAll('.meter-bracket').length > 0;
     $('hint').style.display = hasContent ? 'none' : '';
@@ -3443,6 +3508,9 @@
   }
 
   function clearAll() {
+    const hasAnything = $('wordBank').querySelectorAll('.word-tile').length > 0 ||
+                        $('canvas').querySelectorAll('.word-tile, .meter-bracket').length > 0;
+    if (hasAnything && !confirm('Clear the word bank and canvas? (Ctrl+Z can bring it back.)')) return;
     const bank = $('wordBank');
     bank.textContent = '';
     const empty = document.createElement('div');
@@ -3470,14 +3538,15 @@
   }
 
   // ---------- COPY ----------
-  function copyArrangement() {
+  // Serialize the canvas arrangement to plain text. Returns '' when there are
+  // no word tiles. Shared by the Copy button and live composition detection.
+  function arrangementToText() {
     const canvas = $('canvas');
     const children = Array.from(canvas.children).filter(
       (c) => c.classList && (c.classList.contains('word-tile') || c.classList.contains('line-break'))
     );
     if (children.filter((c) => c.classList.contains('word-tile')).length === 0) {
-      flashBtn('Empty');
-      return;
+      return '';
     }
 
     let out = '';
@@ -3503,6 +3572,15 @@
       lastWasBreak = false;
     }
     out = out.replace(/\n+$/, ''); // trim trailing newlines
+    return out;
+  }
+
+  function copyArrangement() {
+    const out = arrangementToText();
+    if (!out) {
+      flashBtn('Empty');
+      return;
+    }
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(out).then(
@@ -3550,9 +3628,21 @@
   // The whole app state lives in the DOM (bank tiles, canvas tiles/breaks/
   // brackets), so we snapshot it to localStorage on every mutation and
   // rebuild it on load. Schema: bump STORAGE_KEY if the shape changes.
-  const STORAGE_KEY = 'worder:state:v1';
-  const INTRO_KEY = 'worder:introSeen';
+  const STORAGE_KEY = 'tessera:state:v1';
+  const INTRO_KEY = 'tessera:introSeen';
   let saveTimer = null;
+
+  // One-time migration from the app's brief life as "Worder".
+  try {
+    if (!localStorage.getItem(STORAGE_KEY) && localStorage.getItem('worder:state:v1')) {
+      localStorage.setItem(STORAGE_KEY, localStorage.getItem('worder:state:v1'));
+      localStorage.removeItem('worder:state:v1');
+    }
+    if (!localStorage.getItem(INTRO_KEY) && localStorage.getItem('worder:introSeen')) {
+      localStorage.setItem(INTRO_KEY, '1');
+      localStorage.removeItem('worder:introSeen');
+    }
+  } catch (e) {}
 
   function serializeTile(tile) {
     const o = { w: tile.dataset.word, k: tile.dataset.kind };
@@ -3593,8 +3683,17 @@
     // A snapshot taken mid-drag would miss the dragged tile (it lives on
     // document.body until drop) — defer until the drag settles.
     if (dragEl || pendingDrag) { scheduleSave(); return; }
+    const json = JSON.stringify(snapshotState());
+    if (json === lastSaved) return;
+    if (lastSaved !== null) {
+      undoStack.push(lastSaved);
+      if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+      redoStack.length = 0;
+    }
+    lastSaved = json;
+    updateCanvasStatus();
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshotState()));
+      localStorage.setItem(STORAGE_KEY, json);
     } catch (e) { /* storage blocked or full — keep working without saving */ }
   }
 
@@ -3609,29 +3708,31 @@
     return tile;
   }
 
-  function restoreState() {
-    let saved = null;
-    try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) { return; }
-    if (!saved) return;
-    const hasBank = saved.bank && saved.bank.length > 0;
-    const hasCanvas = saved.canvas && saved.canvas.length > 0;
-    if (!saved.input && !hasBank && !hasCanvas) return;
-
+  // Apply a snapshot to the live DOM, replacing whatever is there. Used both
+  // for restoring on page load and for stepping through undo/redo history.
+  function applySnapshot(saved) {
     $('input').value = saved.input || '';
-    if (saved.collapsed) $('pasteColumn').classList.add('collapsed');
+    $('pasteColumn').classList.toggle('collapsed', !!saved.collapsed);
     if (saved.sortMode) {
       sortMode = saved.sortMode;
       if ($('sortMode')) $('sortMode').value = saved.sortMode;
     }
 
-    if (hasBank) {
-      const bank = $('wordBank');
-      bank.textContent = '';
+    const bank = $('wordBank');
+    bank.textContent = '';
+    if (saved.bank && saved.bank.length > 0) {
       for (const spec of saved.bank) bank.appendChild(restoreTile(spec));
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'empty-bank';
+      empty.textContent = 'Words will appear here.';
+      bank.appendChild(empty);
     }
 
+    const canvas = $('canvas');
+    canvas.querySelectorAll('.word-tile, .line-break, .meter-bracket').forEach((el) => el.remove());
     let canvasHasContent = false;
-    if (hasCanvas) {
+    if (saved.canvas && saved.canvas.length > 0) {
       const frag = document.createDocumentFragment();
       for (const item of saved.canvas) {
         if (item.t === 'w') {
@@ -3644,19 +3745,68 @@
           canvasHasContent = true;
         }
       }
-      $('canvas').appendChild(frag);
+      canvas.appendChild(frag);
     }
 
-    bankOrderCounter = Math.max(bankOrderCounter, Number(saved.bankCounter) || 0);
+    // Restore the counter exactly (not max with current) — rebuilding tiles
+    // bumps it, and any drift makes otherwise-identical snapshots compare
+    // unequal, polluting the undo history with duplicate entries.
+    bankOrderCounter = Number(saved.bankCounter) || 0;
     // Safe to restore as HTML: this panel is only ever built with textContent,
     // so the saved markup contains no unescaped user input.
-    if (saved.status && $('meterStatus')) $('meterStatus').innerHTML = saved.status;
-    if (canvasHasContent) $('hint').style.display = 'none';
+    if ($('meterStatus')) $('meterStatus').innerHTML = saved.status || '';
+    $('hint').style.display = canvasHasContent ? 'none' : '';
 
     sortBank();
     updateSentence();
     updateMeterCounts();
     updateCounter();
+    updateCanvasStatus();
+  }
+
+  function restoreState() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) { return false; }
+    if (!saved) return false;
+    const hasBank = saved.bank && saved.bank.length > 0;
+    const hasCanvas = saved.canvas && saved.canvas.length > 0;
+    if (!saved.input && !hasBank && !hasCanvas) return false;
+    applySnapshot(saved);
+    return true;
+  }
+
+  // ---------- UNDO / REDO ----------
+  // Every debounced save is also a history entry, so undo depth matches
+  // save granularity (one entry per settled change, not per keystroke).
+  const undoStack = [];
+  const redoStack = [];
+  const HISTORY_LIMIT = 100;
+  let lastSaved = null;
+
+  function undo() {
+    if (dragEl || pendingDrag) return;
+    clearTimeout(saveTimer);
+    saveStateNow(); // settle any pending change so it becomes the undo target
+    if (undoStack.length === 0) return;
+    redoStack.push(lastSaved);
+    lastSaved = undoStack.pop();
+    applySnapshot(JSON.parse(lastSaved));
+    try { localStorage.setItem(STORAGE_KEY, lastSaved); } catch (e) {}
+  }
+
+  function redo() {
+    if (dragEl || pendingDrag || redoStack.length === 0) return;
+    clearTimeout(saveTimer);
+    undoStack.push(lastSaved);
+    lastSaved = redoStack.pop();
+    applySnapshot(JSON.parse(lastSaved));
+    try { localStorage.setItem(STORAGE_KEY, lastSaved); } catch (e) {}
+  }
+
+  function isEditingContext(target) {
+    if (!target) return false;
+    const tag = target.tagName;
+    return tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT' || target.isContentEditable;
   }
 
   function initPersistence() {
@@ -3665,10 +3815,82 @@
     observer.observe($('wordBank'), opts);
     observer.observe($('canvas'), opts);
     $('input').addEventListener('input', scheduleSave);
+    $('input').addEventListener('input', scheduleSourceAnalysis);
     window.addEventListener('beforeunload', () => {
       clearTimeout(saveTimer);
       if (!dragEl && !pendingDrag) saveStateNow();
     });
+
+    lastSaved = JSON.stringify(snapshotState());
+
+    document.addEventListener('keydown', (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === 'z' && !isEditingContext(e.target)) {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+      } else if (key === 'y' && !isEditingContext(e.target)) {
+        e.preventDefault();
+        redo();
+      }
+    });
+  }
+
+  // ---------- LIVE SOURCE ANALYSIS ----------
+  // Keep the "Detected:" panel in sync with the paste box instead of only
+  // updating it when the meter scaffold button is clicked.
+  let sourceAnalysisTimer = null;
+
+  function refreshSourceAnalysis() {
+    const status = $('meterStatus');
+    if (!status) return;
+    const text = $('input').value;
+    if (!text.trim()) {
+      status.textContent = '';
+      scheduleSave();
+      return;
+    }
+    if (text.length > 20000) return; // skip re-analyzing very large pastes per keystroke
+    const meter = analyzeSourceMeter(text);
+    if (meter) renderMeterStatus(status, meter);
+    scheduleSave();
+  }
+
+  function scheduleSourceAnalysis() {
+    clearTimeout(sourceAnalysisTimer);
+    sourceAnalysisTimer = setTimeout(refreshSourceAnalysis, 600);
+  }
+
+  // ---------- LIVE COMPOSITION DETECTION ----------
+  // Run the same form-detection engine on the poem being composed and show
+  // the result in a quiet status line under the canvas.
+  function updateCanvasStatus() {
+    const el = $('canvasStatus');
+    if (!el) return;
+    const text = arrangementToText();
+    if (!text) { el.textContent = ''; return; }
+    const meter = analyzeSourceMeter(text);
+    if (!meter || !meter.pattern) { el.textContent = ''; return; }
+
+    el.textContent = '';
+    const form = document.createElement('span');
+    form.className = 'canvas-status-form';
+    form.textContent = meter.pattern.label;
+    el.appendChild(form);
+
+    const counts = meter.lineMeters.map((lm) => lm.syllables);
+    const countsShown = counts.slice(0, 14).join('–') + (counts.length > 14 ? '–…' : '');
+    let detail = meter.lineCount + (meter.lineCount === 1 ? ' line' : ' lines') +
+                 ' · ' + countsShown + (counts.length === 1 ? ' syllables' : ' syllables');
+    if (meter.rhyme && meter.rhyme.scheme && /[A-Z]/.test(meter.rhyme.scheme)) {
+      const scheme = meter.rhyme.scheme.length > 20
+        ? meter.rhyme.scheme.slice(0, 20) + '…'
+        : meter.rhyme.scheme;
+      detail += ' · rhyme ' + scheme;
+    }
+    const detailEl = document.createElement('span');
+    detailEl.textContent = detail;
+    el.appendChild(detailEl);
   }
 
   // ---------- HELP OVERLAY ----------
@@ -3707,7 +3929,9 @@
   window.dismissHelp = dismissHelp;
 
   initPalette();
-  restoreState();
+  const restored = restoreState();
+  if (!restored && isMobile()) $('pasteColumn').classList.add('collapsed');
+  if ($('input').value.trim()) refreshSourceAnalysis(); // replace any stale restored panel
   initPersistence();
   maybeShowIntro();
 })();
