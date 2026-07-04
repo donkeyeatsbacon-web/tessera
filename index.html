@@ -430,6 +430,54 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
   }
+  /* ---------- HELP OVERLAY ---------- */
+  .help-btn {
+    position: absolute;
+    top: 12px; right: 14px;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: #3a3a3a; color: #aaa;
+    font-size: 13px; font-weight: 700;
+    padding: 0;
+    z-index: 50;
+  }
+  .help-btn:hover { background: #4a4a4a; color: #d4a574; }
+
+  .help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 1000;
+  }
+  .help-overlay.visible { display: flex; }
+  .help-card {
+    background: #232323;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    max-width: 520px;
+    width: calc(100% - 40px);
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+    padding: 28px 30px 24px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  }
+  .help-title { font-size: 30px; color: #d4a574; font-style: italic; }
+  .help-tagline { color: #999; font-size: 14px; margin-top: 4px; font-style: italic; }
+  .help-steps {
+    margin: 18px 0 0 18px;
+    display: flex; flex-direction: column; gap: 12px;
+    font-size: 14px; line-height: 1.55; color: #ccc;
+  }
+  .help-steps strong { color: #e8e8e8; }
+  .help-steps em { color: #d4a574; font-style: normal; }
+  .help-note {
+    margin-top: 18px; padding: 10px 12px;
+    background: #1c1c1c; border: 1px solid #333; border-radius: 4px;
+    font-family: -apple-system, system-ui, sans-serif;
+    font-size: 11px; color: #888; line-height: 1.5;
+  }
+  .help-card .btn-primary { margin-top: 18px; }
 </style>
 </head>
 <body>
@@ -499,11 +547,27 @@
 
 <!-- ============== COMPOSITION COLUMN ============== -->
 <div class="column composition-column">
+  <button class="help-btn" onclick="showHelp()" title="How Worder works">?</button>
   <div class="canvas" id="canvas">
     <div class="hint" id="hint">
       Drag words here to compose
       <span class="small">Drop near existing words to insert • Drop 3+ lines below to start a new paragraph</span>
     </div>
+  </div>
+</div>
+
+<!-- ============== HELP OVERLAY ============== -->
+<div class="help-overlay" id="helpOverlay" onclick="if (event.target === this) dismissHelp()">
+  <div class="help-card">
+    <div class="help-title">Worder</div>
+    <div class="help-tagline">Take words apart. Put them back together, differently.</div>
+    <ol class="help-steps">
+      <li><strong>Paste</strong> any text in the left column, then <em>Break into words</em> (or <em>Break into lines</em>). Every word becomes a tile in the bank.</li>
+      <li><strong>Drag</strong> tiles onto the canvas to compose. Drop between words to insert, drop well below the last line to start a new stanza, and drag a tile off the canvas to send it back to the bank.</li>
+      <li><strong>Shape it.</strong> Double-click any tile to edit it, grab punctuation from the unlimited palette, and try <em>Match source meter</em> to compose into the syllable and rhyme scaffold of your source text.</li>
+    </ol>
+    <div class="help-note">Your work saves automatically in this browser — close the tab and pick up where you left off. As you write, Worder counts syllables and recognizes 100+ poetic forms, from haiku to villanelles.</div>
+    <button class="btn-primary btn-block" onclick="dismissHelp()">Start rearranging</button>
   </div>
 </div>
 
@@ -1743,6 +1807,7 @@
   function setSortMode(mode) {
     sortMode = mode;
     sortBank();
+    scheduleSave();
   }
 
   // Reorders the tiles within the word bank according to the current sortMode.
@@ -3478,7 +3543,155 @@
   function togglePasteColumn() {
     const col = $('pasteColumn');
     col.classList.toggle('collapsed');
+    scheduleSave();
   }
+
+  // ---------- PERSISTENCE ----------
+  // The whole app state lives in the DOM (bank tiles, canvas tiles/breaks/
+  // brackets), so we snapshot it to localStorage on every mutation and
+  // rebuild it on load. Schema: bump STORAGE_KEY if the shape changes.
+  const STORAGE_KEY = 'worder:state:v1';
+  const INTRO_KEY = 'worder:introSeen';
+  let saveTimer = null;
+
+  function serializeTile(tile) {
+    const o = { w: tile.dataset.word, k: tile.dataset.kind };
+    if (tile.dataset.midCap === 'true') o.mc = 1;
+    if (tile.dataset.bankOrder !== undefined) o.bo = Number(tile.dataset.bankOrder);
+    return o;
+  }
+
+  function snapshotState() {
+    const canvasItems = [];
+    for (const child of $('canvas').children) {
+      if (!child.classList) continue;
+      if (child.classList.contains('word-tile')) {
+        canvasItems.push(Object.assign({ t: 'w' }, serializeTile(child)));
+      } else if (child.classList.contains('line-break')) {
+        canvasItems.push({ t: 'b' });
+      } else if (child.classList.contains('meter-bracket')) {
+        canvasItems.push({
+          t: 'm',
+          n: Number(child.dataset.lineNumber),
+          s: Number(child.dataset.targetSyllables),
+          r: child.dataset.rhymeLetter || ''
+        });
+      }
+    }
+    return {
+      input: $('input').value,
+      sortMode: sortMode,
+      collapsed: $('pasteColumn').classList.contains('collapsed'),
+      bankCounter: bankOrderCounter,
+      bank: Array.from($('wordBank').querySelectorAll('.word-tile')).map(serializeTile),
+      canvas: canvasItems,
+      status: $('meterStatus') ? $('meterStatus').innerHTML : ''
+    };
+  }
+
+  function saveStateNow() {
+    // A snapshot taken mid-drag would miss the dragged tile (it lives on
+    // document.body until drop) — defer until the drag settles.
+    if (dragEl || pendingDrag) { scheduleSave(); return; }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshotState()));
+    } catch (e) { /* storage blocked or full — keep working without saving */ }
+  }
+
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveStateNow, 400);
+  }
+
+  function restoreTile(spec) {
+    const tile = createTile(spec.w, spec.k, spec.mc === 1);
+    if (spec.bo !== undefined) tile.dataset.bankOrder = String(spec.bo);
+    return tile;
+  }
+
+  function restoreState() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) { return; }
+    if (!saved) return;
+    const hasBank = saved.bank && saved.bank.length > 0;
+    const hasCanvas = saved.canvas && saved.canvas.length > 0;
+    if (!saved.input && !hasBank && !hasCanvas) return;
+
+    $('input').value = saved.input || '';
+    if (saved.collapsed) $('pasteColumn').classList.add('collapsed');
+    if (saved.sortMode) {
+      sortMode = saved.sortMode;
+      if ($('sortMode')) $('sortMode').value = saved.sortMode;
+    }
+
+    if (hasBank) {
+      const bank = $('wordBank');
+      bank.textContent = '';
+      for (const spec of saved.bank) bank.appendChild(restoreTile(spec));
+    }
+
+    let canvasHasContent = false;
+    if (hasCanvas) {
+      const frag = document.createDocumentFragment();
+      for (const item of saved.canvas) {
+        if (item.t === 'w') {
+          frag.appendChild(restoreTile(item));
+          canvasHasContent = true;
+        } else if (item.t === 'b') {
+          frag.appendChild(createLineBreak());
+        } else if (item.t === 'm') {
+          frag.appendChild(createMeterBracket(item.n, item.s, item.r));
+          canvasHasContent = true;
+        }
+      }
+      $('canvas').appendChild(frag);
+    }
+
+    bankOrderCounter = Math.max(bankOrderCounter, Number(saved.bankCounter) || 0);
+    // Safe to restore as HTML: this panel is only ever built with textContent,
+    // so the saved markup contains no unescaped user input.
+    if (saved.status && $('meterStatus')) $('meterStatus').innerHTML = saved.status;
+    if (canvasHasContent) $('hint').style.display = 'none';
+
+    sortBank();
+    updateSentence();
+    updateMeterCounts();
+    updateCounter();
+  }
+
+  function initPersistence() {
+    const observer = new MutationObserver(scheduleSave);
+    const opts = { childList: true, subtree: true, attributes: true, characterData: true };
+    observer.observe($('wordBank'), opts);
+    observer.observe($('canvas'), opts);
+    $('input').addEventListener('input', scheduleSave);
+    window.addEventListener('beforeunload', () => {
+      clearTimeout(saveTimer);
+      if (!dragEl && !pendingDrag) saveStateNow();
+    });
+  }
+
+  // ---------- HELP OVERLAY ----------
+  function showHelp() {
+    $('helpOverlay').classList.add('visible');
+  }
+
+  function dismissHelp() {
+    $('helpOverlay').classList.remove('visible');
+    try { localStorage.setItem(INTRO_KEY, '1'); } catch (e) {}
+  }
+
+  function maybeShowIntro() {
+    let seen = null;
+    try { seen = localStorage.getItem(INTRO_KEY); } catch (e) {}
+    if (!seen) showHelp();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && $('helpOverlay').classList.contains('visible')) {
+      dismissHelp();
+    }
+  });
 
   // ---------- EXPOSE ----------
   window.loadWords = loadWords;
@@ -3490,8 +3703,13 @@
   window.togglePasteColumn = togglePasteColumn;
   window.setSortMode = setSortMode;
   window.jumbleToCanvas = jumbleToCanvas;
+  window.showHelp = showHelp;
+  window.dismissHelp = dismissHelp;
 
   initPalette();
+  restoreState();
+  initPersistence();
+  maybeShowIntro();
 })();
 </script>
 </body>
