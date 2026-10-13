@@ -2,63 +2,97 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tessera — Word Rearranger</title>
 <meta name="description" content="Paste any text, break it into word tiles, and drag them around to compose something new. Tessera detects meter, rhyme schemes, and over 100 poetic forms as you write — from haiku to villanelles.">
 <meta property="og:title" content="Tessera — Word Rearranger">
 <meta property="og:description" content="Paste any text, break it into word tiles, and rearrange them into poetry. Live meter, rhyme, and poetic form detection.">
 <meta property="og:type" content="website">
-<meta name="theme-color" content="#1a1a1a">
+<meta property="og:url" content="https://donkeyeatsbacon-web.github.io/tessera/">
+<meta property="og:image" content="https://donkeyeatsbacon-web.github.io/tessera/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Tessera: word tiles arranged into a poem">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Tessera — Word Rearranger">
+<meta name="twitter:description" content="Paste any text, break it into word tiles, and rearrange them into poetry.">
+<meta name="twitter:image" content="https://donkeyeatsbacon-web.github.io/tessera/og-image.png">
+<meta name="theme-color" content="#1a1a1a" id="themeColorMeta">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="tessera.css">
+<script>
+  // Apply the saved theme before first paint to avoid a flash.
+  try {
+    var p = JSON.parse(localStorage.getItem('tessera:prefs:v1') || '{}');
+    if (p.theme === 'light' || p.theme === 'dark') document.documentElement.dataset.theme = p.theme;
+  } catch (e) {}
+</script>
 </head>
 <body>
+<a class="skip-link" href="#canvas">Skip to the poem canvas</a>
 
 <!-- ============== PASTE COLUMN ============== -->
-<div class="column column-panel paste-column" id="pasteColumn">
+<section class="column column-panel paste-column" id="pasteColumn" aria-label="Source text">
   <div class="paste-content">
     <div class="col-header">
       <div class="col-titles">
-        <div class="col-title">Paste</div>
+        <h2 class="col-title">Paste</h2>
         <div class="col-subtitle">your source text</div>
       </div>
-      <button class="collapse-btn" onclick="togglePasteColumn()" title="Collapse paste column" id="collapseBtn">&#8249;</button>
+      <button class="collapse-btn" data-action="toggle-paste" title="Collapse paste column" aria-label="Collapse paste column" id="collapseBtn">&#8249;</button>
     </div>
     <div class="section">
-      <textarea id="input" placeholder="Paste any text here. Punctuation gets stripped — words go to the bank, apostrophes are kept inside words."></textarea>
-      <div class="button-row">
-        <button class="btn-primary btn-block" onclick="loadWords()">Break into words</button>
-        <button class="btn-secondary btn-block" onclick="loadLines()">Break into lines</button>
-        <button class="btn-secondary btn-block" onclick="applyMeterScaffold()">Match source meter</button>
-        <button class="btn-secondary" onclick="jumbleToCanvas()">Jumble</button>
-        <button class="btn-secondary" onclick="returnAllToBank()">Return all</button>
-        <button class="btn-secondary" onclick="clearAll()">Clear</button>
-        <button class="btn-secondary" onclick="copyArrangement()" id="copyBtn">Copy</button>
+      <div class="source-row">
+        <label class="visually-hidden" for="sampleSelect">Load a sample text</label>
+        <select class="sort-select" id="sampleSelect">
+          <option value="">Try a sample…</option>
+        </select>
+        <button class="btn-secondary" data-action="find-poem" title="Search public-domain poems">Find a poem</button>
       </div>
-      <div class="meter-status" id="meterStatus"></div>
+      <div class="source-wrap">
+        <div class="source-backdrop" id="sourceBackdrop" aria-hidden="true"></div>
+        <label class="visually-hidden" for="input">Source text</label>
+        <textarea id="input" placeholder="Paste any text here. Punctuation gets stripped — words go to the bank, apostrophes are kept inside words."></textarea>
+      </div>
+      <div class="source-legend" id="sourceLegend" hidden><span class="used-swatch"></span> words already on the canvas</div>
+      <div class="button-row">
+        <button class="btn-primary btn-block" data-action="load-words">Break into words</button>
+        <button class="btn-secondary btn-block" data-action="load-lines">Break into lines</button>
+        <button class="btn-secondary btn-block" data-action="match-meter">Match source meter</button>
+        <button class="btn-secondary" data-action="jumble" title="Scatter the bank onto the canvas, or reshuffle the canvas (locked tiles stay put)">Jumble</button>
+        <button class="btn-secondary" data-action="return-all" title="Send every unlocked tile back to the bank">Return all</button>
+        <button class="btn-secondary" data-action="clear">Clear</button>
+        <button class="btn-secondary" data-action="copy" id="copyBtn">Copy</button>
+      </div>
+      <div class="meter-status" id="meterStatus" aria-live="polite"></div>
     </div>
   </div>
-  <button class="expand-strip" onclick="togglePasteColumn()" title="Expand paste column">
+  <button class="expand-strip" data-action="toggle-paste" title="Expand paste column" aria-label="Expand paste column">
     <span class="vlabel">PASTE &#8250;</span>
   </button>
-</div>
+</section>
+<div class="col-resizer" data-resize="pasteColumn" role="separator" aria-orientation="vertical" aria-label="Resize paste column" tabindex="0"></div>
 
 <!-- ============== WORD BANK COLUMN ============== -->
-<div class="column column-panel bank-column">
+<section class="column column-panel bank-column" id="bankColumn" aria-label="Word bank">
   <div class="col-header">
     <div class="col-titles">
-      <div class="col-title">Word bank</div>
+      <h2 class="col-title">Word bank</h2>
       <div class="col-subtitle">drag words onto the canvas</div>
     </div>
+    <button class="collapse-btn bank-toggle" data-action="toggle-bank" aria-label="Collapse word bank" aria-expanded="true" id="bankToggle">&#8964;</button>
   </div>
+  <div class="bank-resizer" id="bankResizer" role="separator" aria-orientation="horizontal" aria-label="Resize word bank"></div>
   <div class="section bank-section">
     <div class="label-row">
       <div class="label">Words</div>
       <div class="counter" id="counter">0 words</div>
     </div>
     <div class="sort-row">
-      <span class="sort-label">Sort:</span>
-      <select class="sort-select" id="sortMode" onchange="setSortMode(this.value)">
+      <label class="sort-label" for="sortMode">Sort:</label>
+      <select class="sort-select" id="sortMode">
         <option value="original">Original order</option>
         <option value="alphabetical">A &rarr; Z</option>
         <option value="length">By length (short &rarr; long)</option>
@@ -67,45 +101,272 @@
         <option value="shuffle">Shuffle</option>
       </select>
     </div>
-    <div class="word-bank" id="wordBank">
+    <div class="sort-row">
+      <label class="sort-label" for="hintMode">Hint:</label>
+      <select class="sort-select" id="hintMode">
+        <option value="off">No highlighting</option>
+        <option value="rhyme">Words that rhyme</option>
+        <option value="fit">Words that fit the line</option>
+      </select>
+    </div>
+    <div class="hint-note" id="hintNote" aria-live="polite"></div>
+    <div class="word-bank" id="wordBank" role="group" aria-label="Word bank tiles">
       <div class="empty-bank">Words will appear here.</div>
     </div>
+    <form class="add-word" id="addWordForm" autocomplete="off">
+      <label class="visually-hidden" for="addWordInput">Add your own words</label>
+      <input id="addWordInput" type="text" placeholder="Add your own word…" maxlength="200" spellcheck="true">
+      <button class="btn-secondary" type="submit">Add</button>
+    </form>
   </div>
-  <div class="section">
+  <div class="section palette-section">
     <div class="label">Punctuation — unlimited supply</div>
-    <div class="palette" id="palette"></div>
+    <div class="palette" id="palette" role="group" aria-label="Punctuation tiles"></div>
   </div>
-</div>
+</section>
+<div class="col-resizer" data-resize="bankColumn" role="separator" aria-orientation="vertical" aria-label="Resize word bank column" tabindex="0"></div>
 
 <!-- ============== COMPOSITION COLUMN ============== -->
-<div class="column composition-column">
-  <button class="mobile-paste-btn" onclick="togglePasteColumn()">&#9998; Paste</button>
-  <button class="help-btn" onclick="showHelp()" title="How Tessera works">?</button>
-  <div class="canvas" id="canvas">
+<main class="column composition-column" id="compositionColumn">
+  <h1 class="visually-hidden">Tessera — compose a poem from word tiles</h1>
+  <button class="mobile-paste-btn" data-action="toggle-paste">&#9998; Paste</button>
+  <div class="toolbar" role="toolbar" aria-label="Poem tools">
+    <label class="visually-hidden" for="targetForm">Aim for a form</label>
+    <select class="sort-select toolbar-select" id="targetForm" title="Aim for a poetic form">
+      <option value="">Aim for a form…</option>
+    </select>
+    <button class="tool-btn" data-action="library" title="Your saved poems">Library</button>
+    <button class="tool-btn" data-action="share" title="Share a link to this poem">Share</button>
+    <button class="tool-btn" data-action="export" title="Export image, text or backup">Export</button>
+    <button class="tool-btn icon" data-action="settings" title="Settings" aria-label="Settings">&#9881;</button>
+    <button class="tool-btn icon" data-action="focus" title="Focus mode (F)" aria-label="Focus mode" aria-pressed="false" id="focusBtn">&#9635;</button>
+    <button class="tool-btn icon help-btn" data-action="help" title="How Tessera works" aria-label="Help">?</button>
+  </div>
+  <div class="target-panel" id="targetPanel" hidden aria-live="polite"></div>
+  <div class="canvas" id="canvas" role="group" aria-label="Poem canvas" tabindex="-1">
     <div class="hint" id="hint">
       Drag words here to compose
-      <span class="small">Drop near existing words to insert • Drop 3+ lines below to start a new paragraph</span>
+      <span class="small">Drop near existing words to insert • Drop 3+ lines below to start a new line</span>
     </div>
   </div>
-  <div class="canvas-status" id="canvasStatus"></div>
-</div>
-
-<!-- ============== HELP OVERLAY ============== -->
-<div class="help-overlay" id="helpOverlay" onclick="if (event.target === this) dismissHelp()">
-  <div class="help-card">
-    <div class="help-title">Tessera</div>
-    <div class="help-tagline">Every word a tile. Every poem a mosaic.</div>
-    <ol class="help-steps">
-      <li><strong>Paste</strong> any text in the Paste panel, then <em>Break into words</em> (or <em>Break into lines</em>). Every word becomes a tile in the bank.</li>
-      <li><strong>Drag</strong> tiles onto the canvas to compose. Drop between words to insert, drop well below the last line to start a new stanza, and drag a tile off the canvas to send it back to the bank. To move several at once, Shift-click them (or drag a box around them on the canvas; long-press on touch) and drag the group.</li>
-      <li><strong>Shape it.</strong> Double-click any tile to edit it, grab punctuation from the unlimited palette, and try <em>Match source meter</em> to compose into the syllable and rhyme scaffold of your source text.</li>
-    </ol>
-    <div class="help-note">Your work saves automatically in this browser — close the tab and pick up where you left off. As you write, Tessera counts syllables and recognizes 100+ poetic forms, from haiku to villanelles.</div>
-    <button class="btn-primary btn-block" onclick="dismissHelp()">Start rearranging</button>
+  <div class="selection-bar" id="selectionBar" hidden>
+    <span id="selectionCount">0 selected</span>
+    <button class="btn-secondary" data-action="sel-bank">To bank</button>
+    <button class="btn-secondary" data-action="sel-lock">Lock</button>
+    <button class="btn-secondary" data-action="sel-clear">Done</button>
   </div>
+  <div class="canvas-status" id="canvasStatus"></div>
+</main>
+
+<!-- ============== MENUS, TOASTS, LIVE REGION ============== -->
+<div class="context-menu" id="contextMenu" role="menu" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden>
+  <span id="toastText"></span>
+  <button class="toast-action" id="toastAction" hidden></button>
 </div>
+<div class="visually-hidden" id="announcer" aria-live="polite"></div>
+
+<!-- ============== DIALOGS ============== -->
+<dialog class="modal help-card" id="helpDialog" aria-labelledby="helpTitle">
+  <h2 class="help-title" id="helpTitle">Tessera</h2>
+  <div class="help-tagline">Every word a tile. Every poem a mosaic.</div>
+  <ol class="help-steps">
+    <li><strong>Paste</strong> any text in the Paste panel (or <em>Try a sample</em>), then <em>Break into words</em> or <em>Break into lines</em>. Every word becomes a tile in the bank.</li>
+    <li><strong>Drag</strong> tiles onto the canvas to compose. On a phone, tap a tile and then tap where it should go. Drop between words to insert, drop well below the last line to start a new line, and drag a tile off the canvas to send it back to the bank. To move several at once, Shift-click them (or drag a box around them on the canvas) and drag the group.</li>
+    <li><strong>Shape it.</strong> Right-click (or long-press) a tile to edit, duplicate, lock or recapitalize it. Grab punctuation from the unlimited palette, use <em>Aim for a form</em> to get a checklist, and try <em>Match source meter</em> to compose into the syllable and rhyme scaffold of your source text.</li>
+  </ol>
+  <div class="help-note">Your work saves automatically in this browser. Use the Library to keep several poems, and Share to send one as a link. As you write, Tessera counts syllables and recognizes 100+ poetic forms, from haiku to villanelles. Press <kbd>?</kbd> for keyboard shortcuts.</div>
+  <div class="dialog-actions">
+    <button class="btn-secondary" data-action="shortcuts">Keyboard shortcuts</button>
+    <button class="btn-secondary" data-action="sample-from-help">Try a sample</button>
+    <button class="btn-primary" data-action="close-dialog" autofocus>Start rearranging</button>
+  </div>
+</dialog>
+
+<dialog class="modal" id="shortcutsDialog" aria-labelledby="shortcutsTitle">
+  <h2 class="dialog-title" id="shortcutsTitle">Keyboard shortcuts</h2>
+  <table class="shortcut-table">
+    <tbody>
+      <tr><th colspan="2">Anywhere</th></tr>
+      <tr><td><kbd>Ctrl</kbd> <kbd>Z</kbd> / <kbd>Ctrl</kbd> <kbd>Y</kbd></td><td>Undo / redo</td></tr>
+      <tr><td><kbd>Ctrl</kbd> <kbd>A</kbd></td><td>Select every tile on the canvas</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Clear selection, close menus and dialogs</td></tr>
+      <tr><td><kbd>Delete</kbd></td><td>Send selected tiles back to the bank</td></tr>
+      <tr><td><kbd>F</kbd></td><td>Toggle focus mode</td></tr>
+      <tr><td><kbd>?</kbd></td><td>Show this list</td></tr>
+      <tr><th colspan="2">On a focused tile (<kbd>Tab</kbd> to reach tiles)</th></tr>
+      <tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd> <kbd>&uarr;</kbd> <kbd>&darr;</kbd></td><td>Move focus between tiles</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>Bank tile: add to the end of the poem. Canvas tile: start a new line after it</td></tr>
+      <tr><td><kbd>Alt</kbd> + arrows</td><td>Move the tile left / right, or to the line above / below</td></tr>
+      <tr><td><kbd>Space</kbd></td><td>Select / deselect</td></tr>
+      <tr><td><kbd>F2</kbd></td><td>Edit the word</td></tr>
+      <tr><td><kbd>L</kbd></td><td>Lock / unlock</td></tr>
+      <tr><td><kbd>Delete</kbd></td><td>Send the tile back to the bank</td></tr>
+      <tr><td><kbd>Shift</kbd> <kbd>F10</kbd> or <kbd>Menu</kbd></td><td>Open the tile menu</td></tr>
+      <tr><th colspan="2">Mouse &amp; touch</th></tr>
+      <tr><td>Shift / Ctrl-click</td><td>Add a tile to the selection</td></tr>
+      <tr><td>Drag on empty canvas</td><td>Box-select tiles</td></tr>
+      <tr><td>Double-click</td><td>Edit a tile</td></tr>
+      <tr><td>Right-click / long-press</td><td>Tile menu</td></tr>
+    </tbody>
+  </table>
+  <div class="dialog-actions"><button class="btn-primary" data-action="close-dialog">Close</button></div>
+</dialog>
+
+<dialog class="modal" id="settingsDialog" aria-labelledby="settingsTitle">
+  <h2 class="dialog-title" id="settingsTitle">Settings</h2>
+  <div class="settings-grid">
+    <label for="prefTheme">Theme</label>
+    <select class="sort-select" id="prefTheme" data-pref="theme">
+      <option value="system">Match system</option>
+      <option value="dark">Dark</option>
+      <option value="light">Light</option>
+    </select>
+    <label for="prefFont">Poem font</label>
+    <select class="sort-select" id="prefFont" data-pref="font">
+      <option value="serif">Serif (Georgia)</option>
+      <option value="sans">Sans-serif</option>
+      <option value="typewriter">Typewriter</option>
+      <option value="hand">Handwritten</option>
+    </select>
+    <label for="prefSize">Tile size</label>
+    <select class="sort-select" id="prefSize" data-pref="size">
+      <option value="s">Small</option>
+      <option value="m">Medium</option>
+      <option value="l">Large</option>
+    </select>
+  </div>
+  <div class="settings-checks">
+    <label><input type="checkbox" data-pref="reuse"> <span><strong>Reusable words</strong> — dragging from the bank leaves the word there, like punctuation</span></label>
+    <label><input type="checkbox" data-pref="scansion"> <span><strong>Show stress marks</strong> above canvas words (˘ unstressed, ´ stressed)</span></label>
+    <label><input type="checkbox" data-pref="highlightSource"> <span><strong>Highlight used words</strong> in the source text</span></label>
+    <label><input type="checkbox" data-pref="animations"> <span><strong>Animations</strong> when tiles move</span></label>
+    <label><input type="checkbox" data-pref="haptics"> <span><strong>Vibrate</strong> on pick-up and drop (phones that support it)</span></label>
+  </div>
+  <div class="dialog-actions"><button class="btn-primary" data-action="close-dialog">Done</button></div>
+</dialog>
+
+<dialog class="modal wide" id="libraryDialog" aria-labelledby="libraryTitle">
+  <h2 class="dialog-title" id="libraryTitle">Library</h2>
+  <p class="dialog-sub">Poems saved in this browser. Your current workspace always autosaves; save it here to keep several drafts.</p>
+  <form class="library-save" id="librarySaveForm" autocomplete="off">
+    <label class="visually-hidden" for="libraryName">Poem name</label>
+    <input id="libraryName" type="text" maxlength="80" placeholder="Name this poem">
+    <button class="btn-primary" type="submit" id="librarySaveBtn">Save current</button>
+  </form>
+  <ul class="library-list" id="libraryList"></ul>
+  <div class="dialog-actions">
+    <button class="btn-secondary" data-action="new-poem">New blank poem</button>
+    <button class="btn-primary" data-action="close-dialog">Close</button>
+  </div>
+</dialog>
+
+<dialog class="modal" id="shareDialog" aria-labelledby="shareTitle">
+  <h2 class="dialog-title" id="shareTitle">Share this poem</h2>
+  <p class="dialog-sub">The whole poem is packed into the link itself; nothing is uploaded anywhere. Anyone with the link can read it and open a copy to remix.</p>
+  <div class="settings-checks">
+    <label><input type="checkbox" id="shareIncludeSource" checked> <span>Include the source text and unused words</span></label>
+  </div>
+  <label class="visually-hidden" for="shareUrl">Share link</label>
+  <textarea id="shareUrl" class="share-url" readonly rows="3"></textarea>
+  <div class="share-size" id="shareSize"></div>
+  <div class="dialog-actions">
+    <button class="btn-secondary" data-action="share-native" id="shareNativeBtn" hidden>Share…</button>
+    <button class="btn-secondary" data-action="close-dialog">Close</button>
+    <button class="btn-primary" data-action="copy-share">Copy link</button>
+  </div>
+</dialog>
+
+<dialog class="modal wide" id="exportDialog" aria-labelledby="exportTitle">
+  <h2 class="dialog-title" id="exportTitle">Export</h2>
+  <div class="export-cols">
+    <div class="export-image">
+      <h3 class="export-h">Image</h3>
+      <div class="settings-grid">
+        <label for="imgStyle">Style</label>
+        <select class="sort-select" id="imgStyle">
+          <option value="tiles">Word tiles</option>
+          <option value="typeset">Typeset</option>
+        </select>
+        <label for="imgTheme">Colors</label>
+        <select class="sort-select" id="imgTheme">
+          <option value="dark">Dark</option>
+          <option value="light">Paper</option>
+        </select>
+        <label for="imgTitle">Title</label>
+        <input id="imgTitle" type="text" maxlength="80" placeholder="(optional)">
+      </div>
+      <canvas class="export-preview" id="exportPreview" width="1080" height="1080" aria-label="Image preview"></canvas>
+      <div class="dialog-actions left">
+        <button class="btn-primary" data-action="download-image">Download PNG</button>
+        <button class="btn-secondary" data-action="share-image" id="shareImageBtn" hidden>Share image…</button>
+      </div>
+    </div>
+    <div class="export-text">
+      <h3 class="export-h">Text</h3>
+      <div class="export-buttons">
+        <button class="btn-secondary" data-action="copy-as" data-format="plain">Copy as plain text</button>
+        <button class="btn-secondary" data-action="copy-as" data-format="markdown">Copy as Markdown</button>
+        <button class="btn-secondary" data-action="copy-as" data-format="attributed">Copy with attribution</button>
+      </div>
+      <h3 class="export-h">Backup</h3>
+      <p class="dialog-sub">A .json file with your workspace and every Library poem.</p>
+      <div class="export-buttons">
+        <button class="btn-secondary" data-action="export-json">Download backup</button>
+        <button class="btn-secondary" data-action="import-json">Restore from backup…</button>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+      </div>
+    </div>
+  </div>
+  <div class="dialog-actions"><button class="btn-primary" data-action="close-dialog">Close</button></div>
+</dialog>
+
+<dialog class="modal wide" id="findDialog" aria-labelledby="findTitle">
+  <h2 class="dialog-title" id="findTitle">Find a poem</h2>
+  <p class="dialog-sub">Search thousands of public-domain poems from <a href="https://poetrydb.org" target="_blank" rel="noopener">PoetryDB</a> by title or poet.</p>
+  <form class="find-form" id="findForm" autocomplete="off">
+    <label class="visually-hidden" for="findQuery">Search</label>
+    <input id="findQuery" type="search" placeholder="e.g. Tyger, Dickinson, Ozymandias" maxlength="80">
+    <select class="sort-select" id="findField" aria-label="Search by">
+      <option value="title">Title</option>
+      <option value="author">Poet</option>
+    </select>
+    <button class="btn-primary" type="submit">Search</button>
+  </form>
+  <div class="find-status" id="findStatus" aria-live="polite"></div>
+  <ul class="library-list" id="findResults"></ul>
+  <div class="dialog-actions"><button class="btn-secondary" data-action="close-dialog">Close</button></div>
+</dialog>
+
+<dialog class="modal" id="explainDialog" aria-labelledby="explainTitle">
+  <h2 class="dialog-title" id="explainTitle"></h2>
+  <p class="explain-desc" id="explainDesc"></p>
+  <ul class="explain-facts" id="explainFacts"></ul>
+  <div class="dialog-actions"><button class="btn-primary" data-action="close-dialog">Close</button></div>
+</dialog>
+
+<dialog class="modal" id="confirmDialog" aria-labelledby="confirmText">
+  <p class="confirm-text" id="confirmText"></p>
+  <div class="dialog-actions">
+    <button class="btn-secondary" id="confirmCancel">Cancel</button>
+    <button class="btn-primary" id="confirmOk">OK</button>
+  </div>
+</dialog>
+
+<dialog class="modal wide" id="sharedDialog" aria-labelledby="sharedTitle">
+  <div class="dialog-kicker">Shared with Tessera</div>
+  <h2 class="dialog-title" id="sharedTitle">A poem</h2>
+  <pre class="shared-poem" id="sharedPoem"></pre>
+  <div class="dialog-sub" id="sharedSource"></div>
+  <div class="dialog-actions">
+    <button class="btn-secondary" data-action="close-shared">Just reading</button>
+    <button class="btn-primary" data-action="open-shared">Open a copy to remix</button>
+  </div>
+</dialog>
 
 <script src="js/analysis.js"></script>
+<script src="js/samples.js"></script>
+<script src="js/export-image.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
