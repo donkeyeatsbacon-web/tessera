@@ -18,6 +18,11 @@
   // poetic vocabulary. Unknown words fall back to suffix-aware heuristics.
   // -----------------------------------------------------------------
   const STRESS_DICT = {
+    // Diphthong + r words the CMU dictionary splits in two but verse
+    // almost always treats as one syllable (Blake's "fire of thine eyes").
+    'fire':'1','fires':'1','fired':'1','hour':'1','hours':'1','ours':'1','ourselves':'01',
+    'tired':'1','desires':'01','sour':'1','choir':'1','wire':'1','spire':'1','lyre':'1',
+
     // Function words — typically unstressed in metered verse
     'a':'0','an':'0','the':'0','and':'0','but':'0','or':'0','nor':'0','yet':'0','so':'0',
     'for':'0','of':'0','to':'0','in':'0','on':'0','at':'0','by':'0','with':'0','from':'0',
@@ -129,12 +134,62 @@
     'recommend':'001','understand':'001','undergo':'001'
   };
 
+  // -----------------------------------------------------------------
+  // FULL PRONUNCIATION DICTIONARY (optional, loaded at runtime)
+  // data/pronunciations.json is built from the CMU Pronouncing Dictionary
+  // by tools/build-pronunciations.py. Until it arrives, everything falls
+  // back to STRESS_DICT plus spelling heuristics.
+  // -----------------------------------------------------------------
+  let PRON_STRESS = null; // word -> '010'
+  let PRON_RHYME = null;  // word -> phonemes from the last stressed vowel on
+
+  function loadPronunciations(data) {
+    const stress = new Map(), rhyme = new Map();
+    for (const pattern of Object.keys(data.s || {})) {
+      for (const w of data.s[pattern].split(' ')) stress.set(w, pattern);
+    }
+    for (const tail of Object.keys(data.r || {})) {
+      for (const w of data.r[tail].split(' ')) rhyme.set(w, tail);
+    }
+    PRON_STRESS = stress;
+    PRON_RHYME = rhyme;
+    return stress.size;
+  }
+
+  function hasPronunciations() {
+    return PRON_STRESS !== null;
+  }
+
+  // Spellings to try for a word, most literal first: archaic elisions like
+  // dimm'd / wander'st / summer's map onto their modern dictionary forms.
+  function pronVariants(raw) {
+    const w = String(raw).toLowerCase().replace(/\u2019/g, "'")
+      .replace(/[^a-z']/g, '').replace(/^'+|'+$/g, '');
+    if (!w) return [];
+    const out = [w];
+    if (/'d$/.test(w)) out.push(w.slice(0, -2) + 'ed');
+    if (/'st$/.test(w)) out.push(w.slice(0, -3) + 'est');
+    if (/'(s|ll|re|ve|m)$/.test(w)) out.push(w.replace(/'(s|ll|re|ve|m)$/, ''));
+    if (w.indexOf("'") !== -1) out.push(w.replace(/'/g, ''));
+    return out;
+  }
+
+  function lookupPron(map, raw) {
+    if (!map) return null;
+    for (const v of pronVariants(raw)) {
+      if (map.has(v)) return map.get(v);
+    }
+    return null;
+  }
+
   // Return a stress pattern string (0s and 1s) for one word.
   function getWordStress(rawWord) {
     if (!rawWord) return '';
     // Normalize: lowercase, strip common contractions for lookup
     const w = rawWord.toLowerCase().replace(/[\u2019']s$|[\u2019']re$|[\u2019']ve$|[\u2019']d$|[\u2019']m$|[\u2019']ll$/, '');
     if (STRESS_DICT.hasOwnProperty(w)) return STRESS_DICT[w];
+    const full = lookupPron(PRON_STRESS, rawWord);
+    if (full) return full;
     return heuristicStress(w);
   }
 
@@ -612,6 +667,8 @@
   // (which is exact), with a suffix-aware heuristic as fallback.
   function countSyllables(word) {
     if (!word) return 1;
+    const full = lookupPron(PRON_STRESS, word);
+    if (full && !STRESS_DICT.hasOwnProperty(word.toLowerCase())) return full.length;
     const lower = word.toLowerCase().replace(/[^a-z]/g, '');
     if (!lower) return 1;
 
@@ -680,6 +737,8 @@
   // aggressive than the meter heuristic at recognizing feminine/masculine endings.
   function rhymeStress(word) {
     if (STRESS_DICT.hasOwnProperty(word)) return STRESS_DICT[word];
+    const full = lookupPron(PRON_STRESS, word);
+    if (full) return full;
     const syllables = countSyllables(word);
     if (syllables <= 1) return '1';
 
@@ -702,10 +761,28 @@
     return makePattern(syllables, 0);
   }
 
+  // Rhyme key from the pronunciation dictionary. Unknown words borrow the
+  // pronunciation of their longest known ending (untrimmed -> trimmed),
+  // since only the ending matters for rhyme.
+  function phoneticRhymeKey(word) {
+    if (!PRON_RHYME) return '';
+    const direct = lookupPron(PRON_RHYME, word);
+    if (direct) return 'P:' + direct;
+    for (const v of pronVariants(word).slice(1).concat(pronVariants(word)[0])) {
+      for (let i = 1; i <= v.length - 3; i++) {
+        const tail = v.slice(i);
+        if (/[aeiouy]/.test(tail) && PRON_RHYME.has(tail)) return 'P:' + PRON_RHYME.get(tail);
+      }
+    }
+    return '';
+  }
+
   // Returns the orthographic rhyme key for one word. Words sharing a key are
   // treated as rhyming.
   function getRhymeKey(word) {
     if (!word) return '';
+    const phonetic = phoneticRhymeKey(word);
+    if (phonetic) return phonetic;
     let w = word.toLowerCase().replace(/[\u2019']/g, '').replace(/[^a-z]/g, '');
     if (!w) return '';
 
@@ -1944,6 +2021,7 @@
   return {
     STRESS_DICT, PATTERN_DESCRIPTIONS, KNOWN_PROPER_NOUNS, ARTICLES, FORM_DEFINITIONS,
     getWordStress, getLineStress, classifyLineMeter, namedMeter,
+    loadPronunciations, hasPronunciations,
     countSyllables, getRhymeKey, getLastWord, detectRhymeScheme, nameRhymeScheme,
     analyzeSourceMeter, detectPattern
   };
