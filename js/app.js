@@ -1635,7 +1635,7 @@
   const PREFS_KEY = 'tessera:prefs:v1';
   const reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const DEFAULT_PREFS = {
-    theme: 'system', font: 'serif', size: 'm',
+    theme: 'dark', font: 'serif', size: 'm',
     reuse: false, scansion: false, highlightSource: true,
     animations: !reducedMotion, haptics: true,
     pasteWidth: 280, bankWidth: 300, bankHeight: 38, bankCollapsed: false,
@@ -1644,8 +1644,12 @@
   const prefs = Object.assign({}, DEFAULT_PREFS);
   try { Object.assign(prefs, JSON.parse(localStorage.getItem(PREFS_KEY) || '{}')); } catch (e) {}
 
+  // Store only what differs from the defaults, so changing a default later
+  // reaches everyone who never picked that setting themselves.
   function savePrefs() {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {}
+    const changed = {};
+    for (const k of Object.keys(prefs)) if (prefs[k] !== DEFAULT_PREFS[k]) changed[k] = prefs[k];
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify(changed)); } catch (e) {}
   }
 
   const FONT_STACKS = {

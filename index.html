@@ -24,10 +24,12 @@
 <link rel="stylesheet" href="tessera.css">
 <script>
   // Apply the saved theme before first paint to avoid a flash.
+  // Dark unless the visitor chose otherwise (also if storage is blocked).
+  var theme = 'dark';
   try {
-    var p = JSON.parse(localStorage.getItem('tessera:prefs:v1') || '{}');
-    if (p.theme === 'light' || p.theme === 'dark') document.documentElement.dataset.theme = p.theme;
+    theme = JSON.parse(localStorage.getItem('tessera:prefs:v1') || '{}').theme || 'dark';
   } catch (e) {}
+  if (theme !== 'system') document.documentElement.dataset.theme = theme;
 </script>
 </head>
 <body>
@@ -218,9 +220,9 @@
   <div class="settings-grid">
     <label for="prefTheme">Theme</label>
     <select class="sort-select" id="prefTheme" data-pref="theme">
-      <option value="system">Match system</option>
       <option value="dark">Dark</option>
       <option value="light">Light</option>
+      <option value="system">Match system</option>
     </select>
     <label for="prefFont">Poem font</label>
     <select class="sort-select" id="prefFont" data-pref="font">
