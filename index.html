@@ -235,6 +235,28 @@
     font-style: italic;
   }
   .word-tile.tile-line:hover { background: #f7eed7; }
+  .word-tile.selected,
+  .word-tile.selected:hover {
+    background: #fff1cf;
+    outline: 2px solid #d4a574;
+    outline-offset: 1px;
+  }
+  .drag-group {
+    position: fixed;
+    z-index: 10000;
+    display: flex; flex-wrap: wrap; gap: 6px;
+    max-width: 420px;
+    transform: rotate(-1deg);
+    cursor: grabbing;
+  }
+  .drag-group .word-tile { box-shadow: 0 6px 16px rgba(0,0,0,0.6); }
+  .marquee {
+    position: fixed;
+    z-index: 9999;
+    border: 1px dashed #d4a574;
+    background: rgba(212, 165, 116, 0.12);
+    pointer-events: none;
+  }
   .word-tile[data-source-tile="true"] {
     box-shadow: 0 1px 2px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(0,0,0,0.12);
   }
@@ -624,7 +646,7 @@
     <div class="help-tagline">Every word a tile. Every poem a mosaic.</div>
     <ol class="help-steps">
       <li><strong>Paste</strong> any text in the Paste panel, then <em>Break into words</em> (or <em>Break into lines</em>). Every word becomes a tile in the bank.</li>
-      <li><strong>Drag</strong> tiles onto the canvas to compose. Drop between words to insert, drop well below the last line to start a new stanza, and drag a tile off the canvas to send it back to the bank.</li>
+      <li><strong>Drag</strong> tiles onto the canvas to compose. Drop between words to insert, drop well below the last line to start a new stanza, and drag a tile off the canvas to send it back to the bank. To move several at once, Shift-click them (or drag a box around them on the canvas; long-press on touch) and drag the group.</li>
       <li><strong>Shape it.</strong> Double-click any tile to edit it, grab punctuation from the unlimited palette, and try <em>Match source meter</em> to compose into the syllable and rhyme scaffold of your source text.</li>
     </ol>
     <div class="help-note">Your work saves automatically in this browser — close the tab and pick up where you left off. As you write, Tessera counts syllables and recognizes 100+ poetic forms, from haiku to villanelles.</div>
@@ -1526,16 +1548,38 @@
   let pendingDrag = null;
   const DRAG_THRESHOLD = 5; // px
 
+  const LONG_PRESS_MS = 450;
+
   function startDrag(e) {
     const sourceTile = e.currentTarget;
     if (sourceTile.dataset.editing === 'true') return;
     const evt = e.touches ? e.touches[0] : e;
 
+    // Shift / Ctrl / Cmd + click toggles the tile in the selection instead of dragging.
+    if (!e.touches && (e.shiftKey || e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      if (isSelectable(sourceTile)) toggleSelected(sourceTile);
+      return;
+    }
+
     pendingDrag = {
       sourceTile,
       startX: evt.clientX,
-      startY: evt.clientY
+      startY: evt.clientY,
+      longPressed: false,
+      longPressTimer: null
     };
+
+    // Touch: press and hold (without moving) toggles selection.
+    if (e.touches && isSelectable(sourceTile)) {
+      const pd = pendingDrag;
+      pd.longPressTimer = setTimeout(() => {
+        if (pendingDrag !== pd) return;
+        pd.longPressed = true;
+        toggleSelected(sourceTile);
+        if (navigator.vibrate) navigator.vibrate(15);
+      }, LONG_PRESS_MS);
+    }
 
     // Prevent default for touch only, to stop page scrolling. For mouse, leave defaults
     // alone so dblclick events can still fire.
@@ -1561,7 +1605,12 @@
     beginActualDrag(evt);
   }
 
+  // Pointer released without dragging — a plain click/tap clears the selection.
   function cancelPending() {
+    if (pendingDrag) {
+      clearTimeout(pendingDrag.longPressTimer);
+      if (!pendingDrag.longPressed) clearSelection();
+    }
     pendingDrag = null;
     document.removeEventListener('mousemove', maybeBeginDrag);
     document.removeEventListener('mouseup', cancelPending);
@@ -1571,23 +1620,39 @@
 
   function beginActualDrag(evt) {
     const sourceTile = pendingDrag.sourceTile;
-    let target;
-    if (sourceTile.dataset.sourceTile === 'true') {
-      target = createTile(sourceTile.dataset.word, sourceTile.dataset.kind);
-    } else {
-      target = sourceTile;
-    }
-
-    const wasOnCanvas = target.parentElement && target.parentElement.id === 'canvas';
-
-    dragEl = target;
+    clearTimeout(pendingDrag.longPressTimer);
     const rect = sourceTile.getBoundingClientRect();
     offsetX = pendingDrag.startX - rect.left;
     offsetY = pendingDrag.startY - rect.top;
-
     pendingDrag = null;
 
+    // Grabbing a selected tile drags the whole selection; grabbing any
+    // other tile drops the selection and drags just that one.
+    const group = sourceTile.classList.contains('selected') ? selectedTiles() : [];
+    if (!sourceTile.classList.contains('selected')) clearSelection();
+
+    let target, wasOnCanvas;
+    if (group.length > 1) {
+      wasOnCanvas = group.some((t) => t.parentElement && t.parentElement.id === 'canvas');
+      target = document.createElement('div');
+      target.className = 'drag-group';
+      group.forEach((t) => target.appendChild(t));
+    } else {
+      if (sourceTile.dataset.sourceTile === 'true') {
+        target = createTile(sourceTile.dataset.word, sourceTile.dataset.kind);
+      } else {
+        target = sourceTile;
+      }
+      wasOnCanvas = target.parentElement && target.parentElement.id === 'canvas';
+    }
+
+    dragEl = target;
     document.body.appendChild(dragEl);
+    if (dragEl !== sourceTile && dragEl.contains(sourceTile)) {
+      // Keep the grabbed tile under the pointer, wherever it sits in the group.
+      offsetX += sourceTile.offsetLeft;
+      offsetY += sourceTile.offsetTop;
+    }
     dragEl.style.left = (evt.clientX - offsetX) + 'px';
     dragEl.style.top = (evt.clientY - offsetY) + 'px';
     dragEl.classList.add('dragging');
@@ -1637,21 +1702,41 @@
 
     hideDropIndicator();
 
+    const isGroup = dragEl.classList.contains('drag-group');
+    const tiles = isGroup ? Array.from(dragEl.children) : [dragEl];
+
     if (inCanvas) {
-      insertOnCanvas(dragEl, evt.clientX, evt.clientY);
+      // First tile goes where the indicator was; the rest follow it in order.
+      insertOnCanvas(tiles[0], evt.clientX, evt.clientY);
+      for (let i = 1; i < tiles.length; i++) tiles[i - 1].after(tiles[i]);
     } else {
-      if (dragEl.dataset.kind === 'word' || dragEl.dataset.kind === 'line') {
-        sendToBank(dragEl);
-      } else {
-        dragEl.remove();
+      for (const tile of tiles) {
+        tile.classList.remove('selected');
+        if (tile.dataset.kind === 'word' || tile.dataset.kind === 'line') {
+          sendToBank(tile);
+        } else {
+          tile.remove();
+        }
       }
     }
 
+    if (isGroup) dragEl.remove();
     dragEl.classList.remove('dragging');
     dragEl.style.left = '';
     dragEl.style.top = '';
     dragEl = null;
 
+    refreshCanvas();
+
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', endDrag);
+    document.removeEventListener('touchmove', onDrag);
+    document.removeEventListener('touchend', endDrag);
+  }
+
+  // Re-run everything that depends on what's on the canvas after tiles move.
+  function refreshCanvas() {
+    const canvas = $('canvas');
     cleanupBreaks();
     updateSentence();
     updateMeterCounts();
@@ -1660,11 +1745,112 @@
     const hasContent = canvas.querySelectorAll('.word-tile').length > 0 ||
                        canvas.querySelectorAll('.meter-bracket').length > 0;
     $('hint').style.display = hasContent ? 'none' : '';
+  }
 
-    document.removeEventListener('mousemove', onDrag);
-    document.removeEventListener('mouseup', endDrag);
-    document.removeEventListener('touchmove', onDrag);
-    document.removeEventListener('touchend', endDrag);
+  // ---------- MULTI-SELECT ----------
+  // Selection lives on the DOM as the .selected class, so undo/redo and
+  // restores (which rebuild tiles) clear it naturally.
+  function isSelectable(tile) {
+    return tile.dataset.sourceTile !== 'true' && tile.dataset.editing !== 'true';
+  }
+
+  function toggleSelected(tile) {
+    tile.classList.toggle('selected');
+  }
+
+  function clearSelection() {
+    document.querySelectorAll('.word-tile.selected').forEach((t) => t.classList.remove('selected'));
+  }
+
+  // Canvas tiles first (in reading order), then any selected bank tiles.
+  function selectedTiles() {
+    return Array.from($('canvas').querySelectorAll('.word-tile.selected'))
+      .concat(Array.from($('wordBank').querySelectorAll('.word-tile.selected')));
+  }
+
+  // Rubber-band selection: drag across empty canvas to select every tile the box touches.
+  let marquee = null;
+  const MARQUEE_THRESHOLD = 4; // px
+
+  function startMarquee(e) {
+    if (e.button !== 0 || e.target.closest('.word-tile, .meter-bracket')) return;
+    const canvas = $('canvas');
+    if (e.target === canvas && e.offsetX > canvas.clientWidth) return; // scrollbar
+    e.preventDefault();
+    const additive = e.shiftKey || e.ctrlKey || e.metaKey;
+    if (!additive) clearSelection();
+    marquee = {
+      x0: e.clientX, y0: e.clientY,
+      base: new Set(additive ? selectedTiles() : []),
+      el: null
+    };
+    document.addEventListener('mousemove', moveMarquee);
+    document.addEventListener('mouseup', endMarquee);
+  }
+
+  function moveMarquee(e) {
+    if (!marquee) return;
+    const left = Math.min(marquee.x0, e.clientX), right = Math.max(marquee.x0, e.clientX);
+    const top = Math.min(marquee.y0, e.clientY), bottom = Math.max(marquee.y0, e.clientY);
+    if (!marquee.el) {
+      if (Math.hypot(right - left, bottom - top) < MARQUEE_THRESHOLD) return;
+      marquee.el = document.createElement('div');
+      marquee.el.className = 'marquee';
+      document.body.appendChild(marquee.el);
+    }
+    Object.assign(marquee.el.style, {
+      left: left + 'px', top: top + 'px',
+      width: (right - left) + 'px', height: (bottom - top) + 'px'
+    });
+    for (const tile of $('canvas').querySelectorAll('.word-tile')) {
+      const r = tile.getBoundingClientRect();
+      const hit = r.left < right && r.right > left && r.top < bottom && r.bottom > top;
+      tile.classList.toggle('selected', hit || marquee.base.has(tile));
+    }
+  }
+
+  function endMarquee() {
+    if (marquee && marquee.el) marquee.el.remove();
+    marquee = null;
+    document.removeEventListener('mousemove', moveMarquee);
+    document.removeEventListener('mouseup', endMarquee);
+  }
+
+  function returnSelectedToBank() {
+    const tiles = Array.from($('canvas').querySelectorAll('.word-tile.selected'));
+    if (!tiles.length) return false;
+    for (const tile of tiles) {
+      tile.classList.remove('selected');
+      if (tile.dataset.kind === 'word' || tile.dataset.kind === 'line') {
+        sendToBank(tile);
+      } else {
+        tile.remove();
+      }
+    }
+    refreshCanvas();
+    return true;
+  }
+
+  function initSelection() {
+    $('canvas').addEventListener('mousedown', startMarquee);
+    // Clicking anywhere outside a tile or the canvas drops the selection.
+    document.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || e.shiftKey || e.ctrlKey || e.metaKey) return;
+      if (e.target.closest('.word-tile, #canvas')) return;
+      clearSelection();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (isEditingContext(e.target)) return;
+      if (e.key === 'Escape') {
+        clearSelection();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (returnSelectedToBank()) e.preventDefault();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' &&
+                 $('canvas').querySelector('.word-tile')) {
+        e.preventDefault();
+        $('canvas').querySelectorAll('.word-tile').forEach((t) => t.classList.add('selected'));
+      }
+    });
   }
 
   // ---------- INSERTION ----------
@@ -3933,6 +4119,7 @@
   if (!restored && isMobile()) $('pasteColumn').classList.add('collapsed');
   if ($('input').value.trim()) refreshSourceAnalysis(); // replace any stale restored panel
   initPersistence();
+  initSelection();
   maybeShowIntro();
 })();
 </script>

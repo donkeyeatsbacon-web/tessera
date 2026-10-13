@@ -1,0 +1,100 @@
+TESSERA — IMPROVEMENT OPTIONS
+=============================
+Effort: [S] = under an hour, [M] = a few hours, [L] = a day or more
+Each item is independent; pick any order.
+
+
+A. COMPOSING & EDITING
+----------------------
+ 1. [M] [DONE] Multi-select tiles — shift/drag-box to grab several tiles and move
+       them as a group (whole phrases or lines at once).
+ 2. [S] Right-click / long-press tile menu — "Send to bank", "Duplicate",
+       "Capitalize", "Edit" without needing a drag or double-click.
+ 3. [S] "Add a word" button — type a brand-new word straight onto the
+       canvas (today you can only edit existing tiles).
+ 4. [M] Rhyme / syllable suggestions — highlight bank tiles that rhyme with
+       the last word of the current line, or that would complete the
+       target syllable count when "Match source meter" is on.
+ 5. [S] Lock a tile — pin a word so Jumble and Return-all leave it alone.
+ 6. [M] Line drag handles — reorder whole lines/stanzas by dragging.
+ 7. [S] Word reuse toggle — option to let bank words be used more than once
+       (like the punctuation palette).
+
+B. SAVING, SHARING & EXPORT
+---------------------------
+ 8. [M] Multiple saved poems — a small "Library" list instead of one
+       auto-saved slot; name, open, duplicate, delete drafts.
+ 9. [M] Share link — encode the poem (and optionally the source text) into
+       a URL hash so anyone can open it read-only. No backend needed.
+10. [M] Export as image — render the poem as a styled PNG card (tile look
+       or clean typeset look) for posting on social media.
+11. [S] Export / import JSON file — backup of the full workspace.
+12. [S] Copy options — plain text, Markdown, or "with source attribution".
+
+C. SOURCE TEXT
+--------------
+13. [S] Built-in sample texts — "Try with: Shakespeare sonnet / news
+       headline / recipe / Declaration of Independence" (public-domain)
+       so first-time visitors get going instantly.
+14. [M] Fetch from URL or Project Gutenberg — pull a public-domain text by
+       title. (Needs CORS-friendly source; may be limited.)
+15. [S] Source-word highlighting — show in the source text which words
+       have already been used.
+
+D. ANALYSIS
+-----------
+16. [M] Bigger pronunciation dictionary — load a fuller CMU dictionary
+       on demand (lazy-loaded file) for more accurate stress/rhyme.
+17. [S] Per-line scansion display — show ˘ / ¯ marks above each canvas
+       line, toggleable.
+18. [S] "Target form" picker — choose "Sonnet" or "Haiku" up front and get
+       a live checklist (lines, syllables, rhyme) of what's still missing.
+19. [S] Explain detections — click a detected form name to see why it
+       matched and a one-line description of that form.
+
+E. LOOK & FEEL
+--------------
+20. [S] Light theme + theme toggle (respecting system preference).
+       Currently dark-only with hardcoded colors.
+21. [S] Font choices for the canvas (serif / sans / typewriter / handwritten).
+22. [S] Tile animations — subtle fly-in on Jumble / Return all, snap
+       feedback on drop.
+23. [S] Focus / zen mode — hide bank & paste column to just read the poem.
+24. [S] Resizable columns — drag the borders between panels.
+
+F. MOBILE
+---------
+25. [M] Tap-to-place mode — tap a bank tile, then tap a spot on the canvas
+       (dragging on phones is fiddly, especially with the bank at 38vh).
+26. [S] Collapsible / resizable bank on mobile to give the canvas room.
+27. [S] Haptic feedback (navigator.vibrate) on pickup/drop where supported.
+
+G. ACCESSIBILITY
+----------------
+28. [M] Keyboard composing — tab to a tile, Enter to pick up, arrow keys to
+       move, Enter to drop. Right now tiles are mouse/touch only.
+29. [S] ARIA labels & live region — announce "moved 'river' to line 2",
+       label the help dialog as a modal, trap focus inside it.
+30. [S] Replace window.confirm() on Clear with an in-app dialog (and an
+       "Undo" toast instead of a blocking prompt).
+31. [S] Check text contrast on the dim grey labels (#888 on #1c1c1c etc.).
+
+H. APP / PLATFORM
+-----------------
+32. [S] Installable PWA — manifest + service worker so it works offline
+       and can be added to a phone home screen.
+33. [S] Social preview image — og:image + twitter card so shared links
+       show a picture (currently text-only).
+34. [S] Keyboard shortcut cheat sheet (press "?" to show).
+35. [S] Privacy-friendly analytics (e.g. GoatCounter / Plausible) to see
+       whether anyone uses it — optional.
+
+I. CODE HEALTH
+--------------
+36. [M] Split the 3,900-line index.html — move the stress dictionary and
+       poetic-form rules into separate .js files (still no build step).
+37. [M] Tests for the analysis engine — syllable counts, rhyme keys and form
+       detection against known poems, so future changes don't regress.
+38. [S] Replace inline onclick="" handlers with addEventListener (cleaner,
+       and allows a strict Content-Security-Policy).
+39. [S] Custom domain for GitHub Pages (e.g. tessera.yourname.com).
