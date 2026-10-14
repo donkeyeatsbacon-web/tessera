@@ -87,8 +87,10 @@ G. QUALITY & TOOLING
 28. [S] [DONE] Linting (ESLint) with a shared config for consistent code.
 29. [S] [DONE] Lighthouse audit — check load speed, accessibility and
        installability scores and fix what it flags. Live: accessibility, best
-       practices, SEO 100; performance 72–77 (simulated slow phone; was 74 with
-       820 ms more blocking before the fixes).
+       practices, SEO 100; performance 72–77 on Lighthouse's simulated slow
+       phone. Fixes (sliced dictionary parsing, deferred scripts, delayed
+       dictionary fetch) took a local run from 74 to 88; the rest is style and
+       layout of a big single page.
 30. [M] [SKIPPED] Screen-reader pass with real tools (NVDA / VoiceOver) to confirm
        the tile announcements make sense in practice.
 
