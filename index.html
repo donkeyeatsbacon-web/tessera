@@ -62,6 +62,7 @@
       <div class="button-row">
         <button class="btn-primary btn-block" data-action="load-words">Break into words</button>
         <button class="btn-secondary btn-block" data-action="load-lines">Break into lines</button>
+        <button class="btn-secondary btn-block" data-action="load-fragments" title="Cut the text into random 2–4 word fragments">Cut into fragments</button>
         <button class="btn-secondary btn-block" data-action="match-meter">Match source meter</button>
         <button class="btn-secondary" data-action="jumble" title="Scatter the bank onto the canvas, or reshuffle the canvas (locked tiles stay put)">Jumble</button>
         <button class="btn-secondary" data-action="return-all" title="Send every unlocked tile back to the bank">Return all</button>
@@ -137,6 +138,7 @@
     <select class="sort-select toolbar-select" id="targetForm" title="Aim for a poetic form">
       <option value="">Aim for a form…</option>
     </select>
+    <button class="tool-btn" data-action="play" title="Other ways to write: daily prompt, blackout, magnets, challenges">Play</button>
     <button class="tool-btn" data-action="library" title="Your saved poems">Library</button>
     <button class="tool-btn" data-action="share" title="Share a link to this poem">Share</button>
     <button class="tool-btn" data-action="export" title="Export image, text or backup">Export</button>
@@ -147,6 +149,7 @@
   <label class="visually-hidden" for="poemTitle">Poem title</label>
   <input id="poemTitle" class="poem-title" type="text" maxlength="120" placeholder="Untitled poem" autocomplete="off">
   <div class="target-panel" id="targetPanel" hidden aria-live="polite"></div>
+  <div class="challenge-badge" id="challengeBadge" hidden aria-live="polite"></div>
   <div class="canvas" id="canvas" role="group" aria-label="Poem canvas" tabindex="-1">
     <div class="hint" id="hint">
       Drag words here to compose
@@ -160,6 +163,10 @@
     <button class="btn-secondary" data-action="sel-clear">Done</button>
   </div>
   <div class="canvas-status" id="canvasStatus"></div>
+  <div class="listen-controls" role="group" aria-label="Listen">
+    <button class="tool-btn" data-action="read-aloud" id="readBtn" aria-pressed="false" title="Read the poem aloud">&#9654; Read aloud</button>
+    <button class="tool-btn" data-action="beat" id="beatBtn" aria-pressed="false" title="Hear the meter: a click on every syllable, louder on stresses">&#9834; Beat</button>
+  </div>
 </main>
 
 <!-- ============== MENUS, TOASTS, LIVE REGION ============== -->
@@ -342,6 +349,54 @@
   <div class="find-status" id="findStatus" aria-live="polite"></div>
   <ul class="library-list" id="findResults"></ul>
   <div class="dialog-actions"><button class="btn-secondary" data-action="close-dialog">Close</button></div>
+</dialog>
+
+<dialog class="modal wide" id="playDialog" aria-labelledby="playTitle">
+  <h2 class="dialog-title" id="playTitle">Ways to write</h2>
+  <ul class="play-list">
+    <li>
+      <div><strong>Today’s prompt</strong><span id="dailyText"></span></div>
+      <button class="btn-primary" data-action="daily">Start</button>
+    </li>
+    <li>
+      <div><strong>Blackout poem</strong><span>Strike words out of the source page until a poem is left standing.</span></div>
+      <button class="btn-secondary" data-action="blackout">Open</button>
+    </li>
+    <li>
+      <div><strong>Fridge magnets</strong><span>Drop tiles anywhere on the canvas, tilted like magnets, instead of in flowing lines.</span></div>
+      <button class="btn-secondary" data-action="free-toggle" id="freeToggle" aria-pressed="false">Turn on</button>
+    </li>
+    <li>
+      <div><strong>Cut-up</strong><span>Chop the source into random 2–4 word fragments, William Burroughs style.</span></div>
+      <button class="btn-secondary" data-action="cut-up">Cut up</button>
+    </li>
+    <li>
+      <div><strong>N+7</strong><span>The Oulipo game: swap each noun-ish word on the canvas for the word seven entries later in the dictionary.</span></div>
+      <button class="btn-secondary" data-action="n-plus-7">Apply</button>
+    </li>
+    <li>
+      <div><strong>Challenge</strong><span>Write under a constraint; a badge on the canvas keeps score.</span></div>
+      <label class="visually-hidden" for="challengeSelect">Challenge</label>
+      <select class="sort-select" id="challengeSelect"><option value="">None</option></select>
+    </li>
+  </ul>
+  <div class="dialog-actions"><button class="btn-primary" data-action="close-dialog">Close</button></div>
+</dialog>
+
+<dialog class="modal wide blackout-dialog" id="blackoutDialog" aria-labelledby="blackoutTitle">
+  <h2 class="dialog-title" id="blackoutTitle">Blackout poem</h2>
+  <p class="dialog-sub">Click or drag across words to black them out (Space toggles the focused word). What stays visible is your poem.</p>
+  <div class="blackout-tools">
+    <button class="btn-secondary" data-action="blackout-all">Black out all</button>
+    <button class="btn-secondary" data-action="blackout-clear">Clear</button>
+    <button class="btn-secondary" data-action="blackout-invert">Invert</button>
+  </div>
+  <div class="blackout-page" id="blackoutPage" role="group" aria-label="Source page"></div>
+  <div class="dialog-actions">
+    <button class="btn-secondary" data-action="blackout-download">Download image</button>
+    <button class="btn-secondary" data-action="close-dialog">Done</button>
+    <button class="btn-primary" data-action="blackout-canvas">Put on canvas</button>
+  </div>
 </dialog>
 
 <dialog class="modal" id="explainDialog" aria-labelledby="explainTitle">

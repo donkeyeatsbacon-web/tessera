@@ -135,3 +135,64 @@ window.TESSERA_SAMPLES = [
       'calm, with a gentle breeze and long golden light.'
   }
 ];
+
+// Extra public-domain openings that rotate through the daily prompt
+// (along with the samples above). One is picked per calendar day.
+window.TESSERA_DAILY = [
+  {
+    id: 'hope',
+    label: 'Emily Dickinson \u2014 Hope is the thing with feathers',
+    text: 'Hope is the thing with feathers\nThat perches in the soul,\nAnd sings the tune without the words,\nAnd never stops at all,'
+  },
+  {
+    id: 'wind',
+    label: 'Christina Rossetti \u2014 Who Has Seen the Wind?',
+    text: 'Who has seen the wind?\nNeither I nor you:\nBut when the leaves hang trembling,\nThe wind is passing through.\n\n' +
+      'Who has seen the wind?\nNeither you nor I:\nBut when the trees bow down their heads,\nThe wind is passing by.'
+  },
+  {
+    id: 'autumn',
+    label: 'John Keats \u2014 To Autumn (opening)',
+    text: 'Season of mists and mellow fruitfulness,\nClose bosom-friend of the maturing sun;\n' +
+      'Conspiring with him how to load and bless\nWith fruit the vines that round the thatch-eves run;'
+  },
+  {
+    id: 'raven',
+    label: 'Edgar Allan Poe \u2014 The Raven (opening)',
+    text: 'Once upon a midnight dreary, while I pondered, weak and weary,\n' +
+      'Over many a quaint and curious volume of forgotten lore\u2014\n' +
+      'While I nodded, nearly napping, suddenly there came a tapping,\n' +
+      'As of some one gently rapping, rapping at my chamber door.'
+  },
+  {
+    id: 'rose',
+    label: 'Robert Burns \u2014 A Red, Red Rose (opening)',
+    text: 'O my Luve is like a red, red rose\nThat\u2019s newly sprung in June;\nO my Luve is like the melody\nThat\u2019s sweetly play\u2019d in tune.'
+  },
+  {
+    id: 'ishmael',
+    label: 'Herman Melville \u2014 Moby-Dick (opening)',
+    text: 'Call me Ishmael. Some years ago\u2014never mind how long precisely\u2014having little or no money in my purse, ' +
+      'and nothing particular to interest me on shore, I thought I would sail about a little and see the watery part of the world.'
+  },
+  {
+    id: 'two-cities',
+    label: 'Charles Dickens \u2014 A Tale of Two Cities (opening)',
+    text: 'It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness, ' +
+      'it was the epoch of belief, it was the epoch of incredulity, it was the season of Light, it was the season of Darkness, ' +
+      'it was the spring of hope, it was the winter of despair.'
+  },
+  {
+    id: 'gettysburg',
+    label: 'Abraham Lincoln \u2014 Gettysburg Address (opening)',
+    text: 'Four score and seven years ago our fathers brought forth on this continent, a new nation, conceived in Liberty, ' +
+      'and dedicated to the proposition that all men are created equal.'
+  },
+  {
+    id: 'alice',
+    label: 'Lewis Carroll \u2014 Alice\u2019s Adventures in Wonderland (opening)',
+    text: 'Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do: ' +
+      'once or twice she had peeped into the book her sister was reading, but it had no pictures or conversations in it, ' +
+      '\u2018and what is the use of a book,\u2019 thought Alice \u2018without pictures or conversations?\u2019'
+  }
+];

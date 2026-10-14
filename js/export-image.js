@@ -29,7 +29,7 @@
     let prev = null;
     for (const t of tokens) {
       const spaced = prev !== null && prev !== 'open' && prev !== 'dash' &&
-        (t.kind === 'word' || t.kind === 'line' || t.kind === 'open') && t.text !== '\u2014';
+        (t.kind === 'word' || t.kind === 'line' || t.kind === 'phrase' || t.kind === 'open') && t.text !== '\u2014';
       out += (spaced ? ' ' : '') + t.text;
       prev = t.text === '\u2014' ? 'dash' : t.kind;
     }
@@ -181,5 +181,68 @@
     return canvas;
   }
 
-  window.TesseraExport = { renderPoemImage: renderPoemImage, joinLine: joinLine };
+  // A blackout page: the whole source text with struck words under black
+  // bars. parts: [{ text, word, struck }] in reading order.
+  function renderBlackoutImage(canvas, opts) {
+    const parts = opts.parts || [];
+    const size = 30;
+    const lineH = Math.round(size * 1.65);
+    const font = size + 'px Georgia, "Times New Roman", serif';
+    const ctx = canvas.getContext('2d');
+    ctx.font = font;
+    const maxX = WIDTH - PAD;
+    // Lay out word by word, honoring the source's line breaks.
+    const items = [];
+    let x = PAD, y = 0;
+    const space = ctx.measureText(' ').width;
+    for (const p of parts) {
+      if (!p.word) {
+        const breaks = (p.text.match(/\n/g) || []).length;
+        if (breaks) { x = PAD; y += lineH * Math.min(breaks, 2); }
+        else if (/\s/.test(p.text)) x += space;
+        else {
+          const w = ctx.measureText(p.text).width;
+          items.push({ x: x, y: y, w: w, text: p.text, struck: false });
+          x += w;
+        }
+        continue;
+      }
+      const w = ctx.measureText(p.text).width;
+      if (x + w > maxX && x > PAD) { x = PAD; y += lineH; }
+      items.push({ x: x, y: y, w: w, text: p.text, struck: p.struck });
+      x += w;
+    }
+    const title = (opts.title || '').trim();
+    const titleBlock = title ? 100 : 0;
+    const height = Math.max(MIN_HEIGHT, Math.min(4000, PAD * 2 + titleBlock + y + lineH + 80));
+    canvas.width = WIDTH;
+    canvas.height = height;
+    ctx.fillStyle = '#fbf8f1';
+    ctx.fillRect(0, 0, WIDTH, height);
+    let top = PAD;
+    if (title) {
+      ctx.fillStyle = '#1a1a1a';
+      ctx.font = 'italic 52px Georgia, serif';
+      ctx.textBaseline = 'top';
+      ctx.fillText(title, PAD, top, WIDTH - PAD * 2);
+      top += titleBlock;
+    }
+    ctx.font = font;
+    ctx.textBaseline = 'alphabetic';
+    for (const it of items) {
+      if (it.struck) {
+        ctx.fillStyle = '#111';
+        ctx.fillRect(it.x - 2, top + it.y + 2, it.w + 4, size + 6);
+      } else {
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillText(it.text, it.x, top + it.y + size);
+      }
+    }
+    ctx.fillStyle = '#6b6457';
+    ctx.font = '24px -apple-system, system-ui, sans-serif';
+    ctx.fillText(opts.footer || 'Made with Tessera', PAD, height - PAD / 2);
+    return canvas;
+  }
+
+  window.TesseraExport = { renderPoemImage: renderPoemImage, renderBlackoutImage: renderBlackoutImage, joinLine: joinLine };
 })();

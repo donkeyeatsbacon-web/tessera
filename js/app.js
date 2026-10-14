@@ -17,7 +17,7 @@
     { char: '(', kind: 'open' },
     { char: ')', kind: 'close' }
   ];
-  const TILE_KINDS = ['word', 'line', 'punct', 'endpunct', 'open', 'close'];
+  const TILE_KINDS = ['word', 'line', 'phrase', 'punct', 'endpunct', 'open', 'close'];
 
 
   const {
@@ -49,7 +49,7 @@
     tile.dataset.word = word;
     tile.dataset.kind = kind;
     if (midCap) tile.dataset.midCap = 'true';
-    if (kind === 'word' || kind === 'line') {
+    if (isTextual(kind)) {
       tile.dataset.bankOrder = String(bankOrderCounter++);
     }
     tile.textContent = word;
@@ -59,10 +59,24 @@
     tile.addEventListener('mousedown', startDrag);
     tile.addEventListener('touchstart', startDrag, { passive: false });
     tile.addEventListener('contextmenu', onTileContextMenu);
-    if (kind === 'word' || kind === 'line') {
+    if (isTextual(kind)) {
       tile.addEventListener('dblclick', onDblClick);
     }
     return tile;
+  }
+
+  // word: one word; line: a whole source line (its own line in the poem);
+  // phrase: a cut-up fragment of several words that flows like a word.
+  function isTextual(kind) {
+    return kind === 'word' || kind === 'line' || kind === 'phrase';
+  }
+
+  function isMultiWord(kind) {
+    return kind === 'line' || kind === 'phrase';
+  }
+
+  function tileWords(tile) {
+    return isMultiWord(tile.dataset.kind) ? parseSourceWords(tile.dataset.word).words : [tile.dataset.word];
   }
 
   function isLocked(tile) {
@@ -538,14 +552,16 @@
     const isGroup = dragEl.classList.contains('drag-group');
     const tiles = isGroup ? Array.from(dragEl.children) : [dragEl];
 
-    if (inCanvas) {
+    if (inCanvas && isFree()) {
+      freeDrop(tiles);
+    } else if (inCanvas) {
       // First tile goes where the indicator was; the rest follow it in order.
       insertOnCanvas(tiles[0], evt.clientX, evt.clientY);
       for (let i = 1; i < tiles.length; i++) tiles[i - 1].after(tiles[i]);
     } else {
       for (const tile of tiles) {
         tile.classList.remove('selected');
-        if (tile.dataset.kind === 'word' || tile.dataset.kind === 'line') {
+        if (isTextual(tile.dataset.kind)) {
           sendToBank(tile);
         } else {
           tile.remove();
@@ -575,6 +591,10 @@
   // Re-run everything that depends on what's on the canvas after tiles move.
   function refreshCanvas() {
     const canvas = $('canvas');
+    if (isFree()) {
+      ensureFreePositions();
+      reorderFreeCanvas();
+    }
     cleanupBreaks();
     updateSentence();
     updateMeterCounts();
@@ -669,7 +689,7 @@
       for (const tile of tiles) {
         tile.classList.remove('selected');
         tile.setAttribute('aria-pressed', 'false');
-        if (tile.dataset.kind === 'word' || tile.dataset.kind === 'line') {
+        if (isTextual(tile.dataset.kind)) {
           sendToBank(tile);
         } else {
           tile.remove();
@@ -767,6 +787,7 @@
 
   // ---------- DROP INDICATOR ----------
   function showDropIndicator(dropX, dropY) {
+    if (isFree()) { hideDropIndicator(); return; } // tiles land where dropped
     const canvas = $('canvas');
     const result = findInsertionRef(canvas, dropX, dropY);
 
@@ -862,6 +883,10 @@
           tile.textContent = lowerFirst(word);
         }
         isStart = false;
+      } else if (kind === 'phrase') {
+        // Fragments keep their source casing, except at a sentence start.
+        tile.textContent = isStart ? capitalizeFirst(word) : word;
+        isStart = /[.!?\u2026]['"\u2019\u201D]?\s*$/.test(word);
       } else if (kind === 'line') {
         // Lines are opaque blocks of text — don't modify their casing.
         tile.textContent = word;
@@ -1155,7 +1180,7 @@
         const text = child.dataset.word || child.textContent || '';
         if (kind === 'word') {
           runningSyllables += countSyllables(text);
-        } else if (kind === 'line') {
+        } else if (isMultiWord(kind)) {
           const ws = text.match(wordRe) || [];
           for (const w of ws) runningSyllables += countSyllables(w);
         }
@@ -1223,7 +1248,7 @@
     animateTiles(() => {
       for (const tile of tiles) {
         tile.classList.remove('selected');
-        if (tile.dataset.kind === 'word' || tile.dataset.kind === 'line') {
+        if (isTextual(tile.dataset.kind)) {
           sendToBank(tile);
         } else {
           tile.remove();
@@ -1314,7 +1339,7 @@
   // a line, right after an opening quote, or after a closed-up em dash.
   function needsSpaceBefore(prev, kind, text) {
     if (prev === null || prev === 'open' || prev === 'dash') return false;
-    return (kind === 'word' || kind === 'open') && text !== '\u2014';
+    return (kind === 'word' || kind === 'phrase' || kind === 'open') && text !== '\u2014';
   }
 
   function copyArrangement() {
@@ -1393,6 +1418,7 @@
     if (tile.dataset.midCap === 'true') o.mc = 1;
     if (tile.dataset.bankOrder !== undefined) o.bo = Number(tile.dataset.bankOrder);
     if (tile.dataset.locked === 'true') o.lk = 1;
+    if (tile.dataset.fx !== undefined) { o.x = Number(tile.dataset.fx); o.y = Number(tile.dataset.fy); o.r = Number(tile.dataset.fr); }
     return o;
   }
 
@@ -1423,6 +1449,8 @@
       bankCounter: bankOrderCounter,
       bank: Array.from($('wordBank').querySelectorAll('.word-tile')).map(serializeTile),
       canvas: canvasItems,
+      mode: isFree() ? 'free' : undefined,
+      blackout: blackout.struck.length ? blackout : undefined,
       status: $('meterStatus') ? $('meterStatus').innerHTML : ''
     };
   }
@@ -1460,6 +1488,11 @@
     const tile = createTile(spec.w, spec.k, spec.mc === 1);
     if (spec.bo !== undefined) tile.dataset.bankOrder = String(spec.bo);
     if (spec.lk === 1) tile.dataset.locked = 'true';
+    if (typeof spec.x === 'number' && typeof spec.y === 'number') {
+      tile.dataset.fx = String(spec.x);
+      tile.dataset.fy = String(spec.y);
+      tile.dataset.fr = String(Number(spec.r) || 0);
+    }
     return tile;
   }
 
@@ -1468,6 +1501,10 @@
   function applySnapshot(saved) {
     $('input').value = saved.input || '';
     $('poemTitle').value = saved.title || '';
+    $('canvas').classList.toggle('free-mode', saved.mode === 'free');
+    blackout = saved.blackout && Array.isArray(saved.blackout.struck)
+      ? { hash: String(saved.blackout.hash || ''), struck: saved.blackout.struck.filter((n) => Number.isInteger(n)) }
+      : { hash: '', struck: [] };
     $('pasteColumn').classList.toggle('collapsed', !!saved.collapsed);
     if (saved.sortMode) {
       sortMode = saved.sortMode;
@@ -1521,6 +1558,7 @@
     updateCounter();
     updateCanvasStatus();
     selectionChanged();
+    applyFreePositions();
   }
 
   function restoreState() {
@@ -1696,7 +1734,7 @@
     reuse: false, scansion: false, highlightSource: true,
     animations: !reducedMotion, haptics: true,
     pasteWidth: 280, bankWidth: 300, bankHeight: 38, bankCollapsed: false,
-    target: '', hint: 'off'
+    target: '', hint: 'off', challenge: ''
   };
   const prefs = Object.assign({}, DEFAULT_PREFS);
   try { Object.assign(prefs, JSON.parse(localStorage.getItem(PREFS_KEY) || '{}')); } catch (e) {}
@@ -1940,7 +1978,7 @@
     let n = 0;
     for (const t of line.tiles) {
       if (t.dataset.kind === 'word') n += countSyllables(t.dataset.word);
-      else if (t.dataset.kind === 'line') {
+      else if (isMultiWord(t.dataset.kind)) {
         for (const w of parseSourceWords(t.dataset.word).words) n += countSyllables(w);
       }
     }
@@ -1951,7 +1989,7 @@
     for (let i = line.tiles.length - 1; i >= 0; i--) {
       const t = line.tiles[i];
       if (t.dataset.kind === 'word') return t.dataset.word;
-      if (t.dataset.kind === 'line') return window.TesseraAnalysis.getLastWord(t.dataset.word);
+      if (isMultiWord(t.dataset.kind)) return window.TesseraAnalysis.getLastWord(t.dataset.word);
     }
     return '';
   }
@@ -2125,6 +2163,17 @@
     clearPaletteSelection();
     animateTiles(() => {
       tiles.forEach((t) => { t.classList.remove('selected'); t.setAttribute('aria-pressed', 'false'); t.remove(); });
+      if (isFree()) {
+        const p = canvasPoint(x, y);
+        let dx = 0;
+        for (const t of tiles) {
+          $('canvas').appendChild(t);
+          setFreePosition(t, p.x + dx, p.y);
+          dx += t.offsetWidth + 10;
+        }
+        applyFreePositions();
+        return;
+      }
       insertOnCanvas(tiles[0], x, y);
       for (let i = 1; i < tiles.length; i++) tiles[i - 1].after(tiles[i]);
     });
@@ -2167,7 +2216,7 @@
     animateTiles(() => {
       for (const tile of tiles) {
         tile.classList.remove('selected');
-        if (tile.dataset.kind === 'word' || tile.dataset.kind === 'line') sendToBank(tile);
+        if (isTextual(tile.dataset.kind)) sendToBank(tile);
         else tile.remove();
       }
     });
@@ -2216,7 +2265,7 @@
   function menuItemsFor(tile) {
     const items = [];
     const kind = tile.dataset.kind;
-    const textual = kind === 'word' || kind === 'line';
+    const textual = isTextual(kind);
     const here = onCanvas(tile);
     const locked = isLocked(tile);
     if (tile.dataset.sourceTile === 'true') {
@@ -2237,7 +2286,7 @@
     }
     if (here) items.push([locked ? 'Unlock' : 'Lock in place', () => { setLocked(tile, !locked); selectionChanged(); }]);
     items.push([tile.classList.contains('selected') ? 'Deselect' : 'Select', () => toggleSelected(tile)]);
-    if (here) {
+    if (here && !isFree()) {
       items.push(['Select whole line', () => selectLine(tile)]);
       items.push(['Move line up', () => moveLine(tile, -1)]);
       items.push(['Move line down', () => moveLine(tile, 1)]);
@@ -2386,6 +2435,17 @@
       focusTile(tiles[tiles.indexOf(tile) + (key === 'ArrowLeft' ? -1 : 1)]);
     } else if (vert && !e.altKey) {
       focusTile(tileInDirection(tile, key === 'ArrowUp' ? -1 : 1));
+    } else if (e.altKey && here && isFree() && (horiz || vert)) {
+      if (isLocked(tile)) { announce('That tile is locked.'); }
+      else {
+        const step = e.shiftKey ? 40 : 10;
+        const dx = key === 'ArrowLeft' ? -step : key === 'ArrowRight' ? step : 0;
+        const dy = key === 'ArrowUp' ? -step : key === 'ArrowDown' ? step : 0;
+        setFreePosition(tile, Number(tile.dataset.fx) + dx, Number(tile.dataset.fy) + dy);
+        applyFreePositions();
+        reorderFreeCanvas();
+        afterKeyboardMove(tile);
+      }
     } else if (e.altKey && here && horiz) {
       if (isLocked(tile)) { announce('That tile is locked.'); }
       else { moveTileHorizontally(tile, key === 'ArrowLeft' ? -1 : 1); afterKeyboardMove(tile); }
@@ -2557,6 +2617,7 @@
       updateSourceHighlight();
       updateHints();
       updateTargetPanel();
+      updateChallenge();
       updateRovingTabStops();
     }, 30);
   }
@@ -2580,7 +2641,7 @@
     const tiles = $('canvas').querySelectorAll('.word-tile');
     for (const t of tiles) {
       let scan = '';
-      if (prefs.scansion && (t.dataset.kind === 'word' || t.dataset.kind === 'line')) {
+      if (prefs.scansion && isTextual(t.dataset.kind)) {
         const stress = t.dataset.kind === 'word'
           ? window.TesseraAnalysis.getWordStress(t.dataset.word)
           : window.TesseraAnalysis.getLineStress(t.dataset.word);
@@ -2607,6 +2668,10 @@
     const linesLeft = new Map();
     for (const t of canvasTiles) {
       const w = (t.dataset.word || '').toLowerCase();
+      if (t.dataset.kind === 'phrase') {
+        for (const pw of tileWords(t)) wordsLeft.set(pw.toLowerCase(), (wordsLeft.get(pw.toLowerCase()) || 0) + 1);
+        continue;
+      }
       const map = t.dataset.kind === 'line' ? linesLeft : (t.dataset.kind === 'word' ? wordsLeft : null);
       if (map) map.set(w.trim(), (map.get(w.trim()) || 0) + 1);
     }
@@ -2714,8 +2779,8 @@
   }
 
   function rhymeTargetWord() {
-    const sel = selectedTiles().filter((t) => t.dataset.kind === 'word');
-    if (sel.length === 1) return sel[0].dataset.word;
+    const sel = selectedTiles().filter((t) => isTextual(t.dataset.kind));
+    if (sel.length === 1) return lastWordOfLine({ tiles: sel });
     const slot = openLineSlot();
     if (slot && slot.rhymeWith) return slot.rhymeWith;
     const lines = nonEmptyCanvasLines().filter((l) => lastWordOfLine(l));
@@ -2725,7 +2790,7 @@
 
   function tileSyllables(t) {
     if (t.dataset.kind === 'word') return countSyllables(t.dataset.word);
-    if (t.dataset.kind === 'line') return parseSourceWords(t.dataset.word).words.reduce((n, w) => n + countSyllables(w), 0);
+    if (isMultiWord(t.dataset.kind)) return parseSourceWords(t.dataset.word).words.reduce((n, w) => n + countSyllables(w), 0);
     return 0;
   }
 
@@ -2742,7 +2807,7 @@
       let n = 0, near = 0;
       const cache = new Map();
       for (const t of bankTiles) {
-        const w = t.dataset.kind === 'line' ? A.getLastWord(t.dataset.word) : t.dataset.word;
+        const w = isMultiWord(t.dataset.kind) ? A.getLastWord(t.dataset.word) : t.dataset.word;
         if (!w) continue;
         const lw = w.toLowerCase();
         if (!cache.has(lw)) cache.set(lw, A.rhymeQuality(w, target));
@@ -3304,8 +3369,8 @@
   // Share format 2: one string per list, one item per line, the first
   // character saying what it is. Much shorter than JSON objects, and it
   // compresses better. Format 1 links (plain JSON) still open.
-  const ITEM_CODES = { word: 'w', line: 'l', punct: 'p', endpunct: 'e', open: 'o', close: 'c' };
-  const CODE_KINDS = { w: 'word', l: 'line', p: 'punct', e: 'endpunct', o: 'open', c: 'close' };
+  const ITEM_CODES = { word: 'w', line: 'l', phrase: 'f', punct: 'p', endpunct: 'e', open: 'o', close: 'c' };
+  const CODE_KINDS = { w: 'word', l: 'line', f: 'phrase', p: 'punct', e: 'endpunct', o: 'open', c: 'close' };
 
   function packItems(items) {
     return items.map((it) => {
@@ -3542,6 +3607,600 @@
   }
 
   // =================================================================
+  // WAYS TO WRITE — cut-up, fridge magnets, blackout, N+7, challenges,
+  // daily prompt (the Play dialog)
+  // =================================================================
+
+  // ---------- CUT-UP ----------
+  // Burroughs-style: chop the source into random 2-4 word fragments, keeping
+  // the original spelling and punctuation inside each fragment.
+  function loadFragments() {
+    const raw = $('input').value.replace(/\s+/g, ' ').trim();
+    if (!raw) { showToast('Paste or load a source text first.'); return; }
+    const tokens = raw.split(' ');
+    const fragments = [];
+    for (let i = 0; i < tokens.length;) {
+      const n = 2 + Math.floor(Math.random() * 3);
+      const piece = tokens.slice(i, i + n).join(' ').replace(/^["“‘(]+|["”’)]+$/g, '');
+      if (/[\p{L}\p{N}]/u.test(piece)) fragments.push(piece);
+      i += n;
+    }
+    commit(() => {
+      const bank = $('wordBank');
+      bank.textContent = '';
+      bankOrderCounter = 0;
+      for (const f of fragments.slice(0, MAX_TOKENS)) bank.appendChild(createTile(f, 'phrase', false));
+      sortBank();
+      updateCounter();
+    });
+    if (isMobile()) $('pasteColumn').classList.add('collapsed');
+    showToast('Cut the source into ' + fragments.length + ' fragments.', 'Undo', undo);
+  }
+
+  // ---------- FRIDGE MAGNETS (free placement) ----------
+  // Tiles keep an x/y (px inside the canvas) and a slight tilt. The DOM
+  // order is kept in reading order (rows top to bottom, left to right) with
+  // line breaks between rows, so analysis, copy and share all still work.
+  function isFree() {
+    return $('canvas').classList.contains('free-mode');
+  }
+
+  function canvasPoint(clientX, clientY) {
+    const canvas = $('canvas');
+    const r = canvas.getBoundingClientRect();
+    return { x: clientX - r.left + canvas.scrollLeft, y: clientY - r.top + canvas.scrollTop };
+  }
+
+  function setFreePosition(tile, x, y) {
+    tile.dataset.fx = String(Math.max(0, Math.round(x)));
+    tile.dataset.fy = String(Math.max(0, Math.round(y)));
+    if (tile.dataset.fr === undefined) tile.dataset.fr = (Math.random() * 6 - 3).toFixed(1);
+  }
+
+  function applyFreePositions() {
+    const free = isFree();
+    for (const t of tilesIn($('canvas'))) {
+      if (free && t.dataset.fx !== undefined) {
+        t.style.left = t.dataset.fx + 'px';
+        t.style.top = t.dataset.fy + 'px';
+        t.style.rotate = t.dataset.fr + 'deg';
+      } else {
+        t.style.left = t.style.top = t.style.rotate = '';
+      }
+    }
+  }
+
+  // Tiles that arrived without a position (jumble, Enter, undo...) get laid
+  // out in rows below everything else.
+  function ensureFreePositions() {
+    if (!isFree()) return;
+    const canvas = $('canvas');
+    const tiles = tilesIn(canvas);
+    let bottom = 24;
+    for (const t of tiles) if (t.dataset.fx !== undefined) bottom = Math.max(bottom, Number(t.dataset.fy) + t.offsetHeight + 14);
+    let x = 24, y = bottom;
+    const maxX = canvas.clientWidth - 24;
+    for (const t of tiles) {
+      if (t.dataset.fx !== undefined) continue;
+      const w = t.offsetWidth;
+      if (x + w > maxX && x > 24) { x = 24; y += t.offsetHeight + 14; }
+      setFreePosition(t, x, y);
+      x += w + 10;
+    }
+    applyFreePositions();
+  }
+
+  // Rebuild DOM order from positions: rows by vertical position, then x.
+  function reorderFreeCanvas() {
+    const canvas = $('canvas');
+    const items = tilesIn(canvas).map((t) => ({ t: t, x: Number(t.dataset.fx) || 0, y: Number(t.dataset.fy) || 0, h: t.offsetHeight || 30 }));
+    items.sort((a, b) => a.y - b.y);
+    const rows = [];
+    for (const it of items) {
+      const row = rows[rows.length - 1];
+      if (row && it.y < row.y + row.h * 0.6) row.items.push(it);
+      else rows.push({ y: it.y, h: it.h, items: [it] });
+    }
+    canvas.querySelectorAll('.line-break, .meter-bracket').forEach((b) => b.remove());
+    const frag = document.createDocumentFragment();
+    rows.forEach((row, i) => {
+      if (i) {
+        const prev = rows[i - 1];
+        const gap = row.y - (prev.y + prev.h);
+        frag.appendChild(gap > prev.h * 1.6 ? createStanzaBreak() : createLineBreak());
+      }
+      row.items.sort((a, b) => a.x - b.x).forEach((it) => frag.appendChild(it.t));
+    });
+    canvas.appendChild(frag);
+  }
+
+  // Drop in free mode: each tile lands exactly where it was let go.
+  function freeDrop(tiles) {
+    const canvas = $('canvas');
+    const spots = tiles.map((t) => {
+      const r = t.getBoundingClientRect();
+      return canvasPoint(r.left, r.top);
+    });
+    tiles.forEach((t, i) => {
+      t.style.position = '';
+      canvas.appendChild(t);
+      setFreePosition(t, spots[i].x, spots[i].y);
+    });
+    applyFreePositions();
+    reorderFreeCanvas();
+  }
+
+  function setFreeMode(on) {
+    if (on === isFree()) return;
+    const canvas = $('canvas');
+    commit(() => {
+      if (on) {
+        // Keep the current layout: every tile starts where it is now.
+        const spots = tilesIn(canvas).map((t) => {
+          const r = t.getBoundingClientRect();
+          return [t, canvasPoint(r.left, r.top)];
+        });
+        canvas.querySelectorAll('.meter-bracket').forEach((b) => b.remove());
+        canvas.classList.add('free-mode');
+        spots.forEach(([t, p]) => setFreePosition(t, p.x, p.y));
+        applyFreePositions();
+        reorderFreeCanvas();
+      } else {
+        canvas.classList.remove('free-mode');
+        for (const t of tilesIn(canvas)) { delete t.dataset.fx; delete t.dataset.fy; delete t.dataset.fr; }
+        applyFreePositions();
+      }
+      refreshCanvas();
+    });
+    renderPlay();
+    showToast(on ? 'Fridge magnets: drop tiles anywhere.' : 'Back to flowing lines.', 'Undo', undo);
+  }
+
+  // ---------- BLACKOUT ----------
+  let blackout = { hash: '', struck: [] };
+
+  function hashText(s) {
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  }
+
+  const BLACKOUT_WORD = /([\p{L}\p{N}][\p{L}\p{N}'’\-]*)/u;
+
+  function blackoutParts(text) {
+    const struck = new Set(blackout.struck);
+    let wi = 0;
+    return text.split(BLACKOUT_WORD).map((part, i) => {
+      if (i % 2 === 0) return { text: part, word: false };
+      const index = wi++;
+      return { text: part, word: true, index: index, struck: struck.has(index) };
+    }).filter((p) => p.text);
+  }
+
+  function openBlackout() {
+    const text = $('input').value;
+    if (!text.trim()) { showToast('Paste or load a source text first.'); return; }
+    const h = hashText(text);
+    if (blackout.hash !== h) blackout = { hash: h, struck: [] };
+    const page = $('blackoutPage');
+    page.textContent = '';
+    let first = true;
+    for (const p of blackoutParts(text)) {
+      if (!p.word) { page.appendChild(document.createTextNode(p.text)); continue; }
+      const s = document.createElement('span');
+      s.className = 'bo-word' + (p.struck ? ' struck' : '');
+      s.textContent = p.text;
+      s.dataset.i = String(p.index);
+      s.setAttribute('role', 'checkbox');
+      s.setAttribute('aria-checked', String(p.struck));
+      s.tabIndex = first ? 0 : -1;
+      first = false;
+      page.appendChild(s);
+    }
+    openDialog('blackoutDialog');
+  }
+
+  function setStruck(span, on) {
+    span.classList.toggle('struck', on);
+    span.setAttribute('aria-checked', String(on));
+  }
+
+  function syncBlackout() {
+    blackout.struck = Array.from($('blackoutPage').querySelectorAll('.bo-word.struck')).map((s) => Number(s.dataset.i));
+    scheduleSave();
+  }
+
+  function initBlackout() {
+    const page = $('blackoutPage');
+    let paint = null; // while dragging: true = striking, false = restoring
+    page.addEventListener('mousedown', (e) => {
+      const w = e.target.closest('.bo-word');
+      if (!w || e.button !== 0) return;
+      e.preventDefault();
+      paint = !w.classList.contains('struck');
+      setStruck(w, paint);
+    });
+    page.addEventListener('mouseover', (e) => {
+      const w = e.target.closest('.bo-word');
+      if (w && paint !== null) setStruck(w, paint);
+    });
+    document.addEventListener('mouseup', () => { if (paint !== null) { paint = null; syncBlackout(); } });
+    page.addEventListener('click', (e) => {
+      // Taps (touch) arrive as clicks without a preceding mousedown paint.
+      const w = e.target.closest('.bo-word');
+      if (w && Date.now() - lastTouchAt < TOUCH_MOUSE_GRACE_MS) { setStruck(w, !w.classList.contains('struck')); syncBlackout(); }
+    });
+    page.addEventListener('keydown', (e) => {
+      const w = e.target.closest('.bo-word');
+      if (!w) return;
+      const words = Array.from(page.querySelectorAll('.bo-word'));
+      const i = words.indexOf(w);
+      let next = null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = words[i + 1];
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = words[i - 1];
+      else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setStruck(w, !w.classList.contains('struck')); syncBlackout(); return; }
+      else return;
+      e.preventDefault();
+      if (next) { w.tabIndex = -1; next.tabIndex = 0; next.focus(); }
+    });
+  }
+
+  function blackoutAll(on) {
+    $('blackoutPage').querySelectorAll('.bo-word').forEach((w) => setStruck(w, on));
+    syncBlackout();
+  }
+
+  function blackoutInvert() {
+    $('blackoutPage').querySelectorAll('.bo-word').forEach((w) => setStruck(w, !w.classList.contains('struck')));
+    syncBlackout();
+  }
+
+  // The words left standing become tiles on the canvas, keeping the
+  // source's line and stanza breaks.
+  function blackoutToCanvas() {
+    const text = $('input').value;
+    const parts = blackoutParts(text);
+    const midCaps = parseSourceWords(text).midCapWords;
+    const lines = [[]];
+    let blank = 0;
+    for (const p of parts) {
+      if (!p.word) {
+        const nl = (p.text.match(/\n/g) || []).length;
+        if (nl) { blank = Math.max(blank, nl); lines.push([]); lines[lines.length - 1].gap = blank; blank = 0; }
+        continue;
+      }
+      if (!p.struck) lines[lines.length - 1].push(p.text);
+    }
+    const kept = lines.filter((l) => l.length);
+    if (!kept.length) { showToast('Every word is blacked out — leave a few standing.'); return; }
+    commit(() => {
+      const canvas = $('canvas');
+      const hasContent = !!canvas.querySelector('.word-tile');
+      const frag = document.createDocumentFragment();
+      if (hasContent) frag.appendChild(createStanzaBreak());
+      let first = true;
+      for (const line of lines) {
+        if (!line.length) continue;
+        if (!first) frag.appendChild(line.gap > 1 ? createStanzaBreak() : createLineBreak());
+        first = false;
+        for (const w of line) frag.appendChild(createTile(w, 'word', midCaps.has(w.toLowerCase()) || KNOWN_PROPER_NOUNS.has(w.toLowerCase())));
+      }
+      canvas.appendChild(frag);
+      refreshCanvas();
+    });
+    $('blackoutDialog').close();
+    showToast('Your blackout poem is on the canvas.', 'Undo', undo);
+  }
+
+  function downloadBlackout() {
+    const c = document.createElement('canvas');
+    window.TesseraExport.renderBlackoutImage(c, {
+      parts: blackoutParts($('input').value),
+      title: $('poemTitle').value.trim(),
+      footer: 'Blackout poem · made with Tessera'
+    });
+    c.toBlob((b) => b && downloadBlob(b, 'tessera-blackout.png'), 'image/png');
+  }
+
+  // ---------- N+7 ----------
+  // Oulipo: replace each noun with the noun seven entries later in a
+  // dictionary. Without a part-of-speech tagger we treat every content word
+  // (not a function word, not an -ly adverb) as noun-like, and use the
+  // built-in poetic word list as the dictionary.
+  const FUNCTION_WORDS = new Set(('a an the and but or nor so yet for of in on at to from by with about above ' +
+    'across after against along among around as before behind below beneath beside between beyond down during ' +
+    'except inside into like near off onto out outside over past since through throughout till toward under ' +
+    'until up upon within without i me my mine myself you your yours yourself he him his himself she her hers ' +
+    'herself it its itself we us our ours ourselves they them their theirs themselves this that these those who ' +
+    'whom whose which what where when why how all any both each every few many more most much no none not some ' +
+    'such than then there here too very is am are was were be been being have has had having do does did doing ' +
+    'will would shall should can could may might must ought if though although because while whether thou thee ' +
+    'thy thine ye o oh say said says go went gone get got make made let one two three').split(' '));
+
+  function nPlus7() {
+    const dict = Object.keys(window.TesseraAnalysis.STRESS_DICT)
+      .filter((w) => /^[a-z]{4,}$/.test(w) && !FUNCTION_WORDS.has(w) && !/ly$/.test(w))
+      .sort();
+    const tiles = tilesIn($('canvas')).filter((t) => t.dataset.kind === 'word' &&
+      /^[A-Za-z]{3,}$/.test(t.dataset.word) && !FUNCTION_WORDS.has(t.dataset.word.toLowerCase()));
+    if (!tiles.length) { showToast('Put some words on the canvas first.'); return; }
+    commit(() => {
+      for (const t of tiles) {
+        const w = t.dataset.word.toLowerCase();
+        let i = 0;
+        while (i < dict.length && dict[i] <= w) i++; // first entry after the word
+        let repl = dict[(i + 6) % dict.length];      // ...and six more = N+7
+        if (startsWithUpper(t.dataset.word)) repl = repl[0].toUpperCase() + repl.slice(1);
+        t.dataset.word = repl;
+      }
+      refreshCanvas();
+    });
+    $('playDialog').close();
+    showToast('N+7 swapped ' + tiles.length + (tiles.length === 1 ? ' word.' : ' words.'), 'Undo', undo);
+  }
+
+  // ---------- CHALLENGES ----------
+  function canvasWords() {
+    const out = [];
+    for (const t of tilesIn($('canvas'))) {
+      if (!isTextual(t.dataset.kind)) continue;
+      for (const w of tileWords(t)) out.push({ tile: t, word: w.toLowerCase().replace(/[^a-z']/g, '') });
+    }
+    return out.filter((x) => x.word);
+  }
+
+  const CHALLENGES = [
+    { id: 'lipogram-e', label: 'Lipogram: no letter E', test: (ws) => offenders(ws, (w) => /e/.test(w), 'use E') },
+    { id: 'lipogram-a', label: 'Lipogram: no letter A', test: (ws) => offenders(ws, (w) => /a/.test(w), 'use A') },
+    { id: 'tautogram', label: 'Tautogram: every word starts with the same letter', test: (ws) => {
+      if (!ws.length) return null;
+      const first = ws[0].word[0];
+      return offenders(ws, (w) => w[0] !== first, 'don’t start with ' + first.toUpperCase());
+    } },
+    { id: 'univocalic', label: 'Univocalic: only one vowel (a, e, i, o or u)', test: (ws) => {
+      if (!ws.length) return null;
+      const counts = {};
+      ws.forEach((x) => (x.word.match(/[aeiou]/g) || []).forEach((v) => { counts[v] = (counts[v] || 0) + 1; }));
+      const main = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+      return offenders(ws, (w) => new RegExp('[aeiou]'.replace(main, '')).test(w), 'use a vowel other than ' + (main || '?').toUpperCase());
+    } },
+    { id: 'snowball', label: 'Snowball: each word one letter longer than the last', test: (ws) => {
+      const bad = ws.filter((x, i) => x.word.replace(/'/g, '').length !== i + 1);
+      return { ok: !bad.length, bad: bad, detail: bad.length ? 'word ' + (ws.indexOf(bad[0]) + 1) + ' should have ' + (ws.indexOf(bad[0]) + 1) + ' letters' : '' };
+    } },
+    { id: 'six-words', label: 'Six-word story', test: (ws) => ({
+      ok: ws.length === 6, bad: ws.slice(6), detail: ws.length === 6 ? '' : ws.length + ' words so far'
+    }) },
+    { id: 'no-repeats', label: 'No word used twice', test: (ws) => {
+      const seen = new Set();
+      return offenders(ws, (w) => { const dup = seen.has(w); seen.add(w); return dup; }, 'are repeats');
+    } },
+    { id: 'one-sentence', label: 'Only words from one sentence of the source', test: (ws) => {
+      if (!ws.length) return null;
+      const sentences = $('input').value.split(/(?<=[.!?…])\s+/).map((s) =>
+        parseSourceWords(s).words.map((w) => w.toLowerCase().replace(/[^a-z']/g, '')));
+      let best = null;
+      for (const sw of sentences) {
+        const pool = new Map();
+        sw.forEach((w) => pool.set(w, (pool.get(w) || 0) + 1));
+        const bad = ws.filter((x) => { const n = pool.get(x.word) || 0; if (n) pool.set(x.word, n - 1); return !n; });
+        if (!best || bad.length < best.length) best = bad;
+      }
+      return { ok: best && !best.length, bad: best || [], detail: best && best.length ? best.length + ' words aren’t in any single sentence' : '' };
+    } }
+  ];
+
+  function offenders(ws, isBad, phrase) {
+    const bad = ws.filter((x) => isBad(x.word));
+    const names = Array.from(new Set(bad.map((x) => x.word))).slice(0, 4);
+    return { ok: !bad.length, bad: bad, detail: bad.length ? names.map((n) => '“' + n + '”').join(', ') + (bad.length > names.length ? '…' : '') + ' ' + phrase : '' };
+  }
+
+  function updateChallenge() {
+    const badge = $('challengeBadge');
+    const ch = CHALLENGES.find((c) => c.id === prefs.challenge);
+    $('canvas').querySelectorAll('.breaks-rule').forEach((t) => t.classList.remove('breaks-rule'));
+    badge.hidden = !ch;
+    if (!ch) return;
+    const ws = canvasWords();
+    const r = ch.test(ws);
+    badge.textContent = '';
+    const name = document.createElement('strong');
+    name.textContent = ch.label;
+    badge.appendChild(name);
+    const state = document.createElement('span');
+    if (!r || !ws.length) state.textContent = 'start placing words';
+    else if (r.ok) state.textContent = '✓ holding';
+    else state.textContent = '✗ ' + r.detail;
+    badge.appendChild(state);
+    badge.classList.toggle('ok', !!(r && r.ok && ws.length));
+    badge.classList.toggle('bad', !!(r && !r.ok));
+    if (r && r.bad) r.bad.forEach((x) => x.tile.classList.add('breaks-rule'));
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'link-btn';
+    close.textContent = '×';
+    close.setAttribute('aria-label', 'Stop the challenge');
+    close.addEventListener('click', () => { prefs.challenge = ''; savePrefs(); scheduleDerived(); });
+    badge.appendChild(close);
+  }
+
+  // ---------- DAILY PROMPT ----------
+  const DAILY_FORMS = ['haiku', 'couplet', 'limerick', 'cinquain', 'tanka', 'lune', 'common-meter'];
+
+  function dailyPrompt() {
+    const texts = (window.TESSERA_SAMPLES || []).concat(window.TESSERA_DAILY || []);
+    if (!texts.length) return null;
+    const now = new Date();
+    const day = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000);
+    return {
+      text: texts[day % texts.length],
+      form: TARGET_FORMS.find((f) => f.id === DAILY_FORMS[(day * 3) % DAILY_FORMS.length])
+    };
+  }
+
+  function startDailyPrompt() {
+    const p = dailyPrompt();
+    if (!p) return;
+    $('playDialog').close();
+    if ($('pasteColumn').classList.contains('collapsed') && !isMobile()) togglePasteColumn();
+    setSourceText(p.text.text, 'today’s prompt, “' + p.text.label + '”,');
+    prefs.target = p.form.id;
+    savePrefs();
+    applyPrefs();
+    scheduleDerived();
+  }
+
+  // ---------- PLAY DIALOG ----------
+  function renderPlay() {
+    const p = dailyPrompt();
+    if (p) $('dailyText').textContent = '“' + p.text.label + '” → write a ' + p.form.label.toLowerCase();
+    $('freeToggle').textContent = isFree() ? 'Back to lines' : 'Turn on';
+    $('freeToggle').setAttribute('aria-pressed', String(isFree()));
+    const sel = $('challengeSelect');
+    if (sel.options.length === 1) {
+      for (const c of CHALLENGES) {
+        const o = document.createElement('option');
+        o.value = c.id;
+        o.textContent = c.label;
+        sel.appendChild(o);
+      }
+    }
+    sel.value = prefs.challenge || '';
+  }
+
+  function openPlay() {
+    renderPlay();
+    openDialog('playDialog');
+  }
+
+  // =================================================================
+  // LISTEN — read aloud and beat
+  // =================================================================
+  function lineText(tiles) {
+    let out = '', prev = null;
+    for (const t of tiles) {
+      out += (needsSpaceBefore(prev, t.dataset.kind, t.textContent) ? ' ' : '') + t.textContent;
+      prev = t.textContent === '—' ? 'dash' : t.dataset.kind;
+    }
+    return out;
+  }
+
+  let speaking = null;
+
+  function readAloud() {
+    if (speaking) { stopSpeaking(); return; }
+    if (!('speechSynthesis' in window)) { showToast('This browser can’t read aloud.'); return; }
+    stopBeat();
+    const lines = nonEmptyCanvasLines().filter((l) => l.tiles.length);
+    if (!lines.length) { showToast('Put some words on the canvas first.'); return; }
+    speaking = { i: -1, lines: lines, timer: null };
+    $('readBtn').textContent = '■ Stop';
+    $('readBtn').setAttribute('aria-pressed', 'true');
+    const title = $('poemTitle').value.trim();
+    if (title) speak(title, 700);
+    else speakNext();
+  }
+
+  function speak(text, pause) {
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.9;
+    u.onend = () => {
+      if (!speaking) return;
+      speaking.timer = setTimeout(speakNext, pause);
+    };
+    u.onerror = (e) => {
+      if (e.error === 'interrupted' || e.error === 'canceled') return;
+      stopSpeaking();
+      showToast('Couldn\u2019t start reading aloud \u2014 this browser may have no speech voices installed.');
+    };
+    speechSynthesis.speak(u);
+  }
+
+  function speakNext() {
+    if (!speaking) return;
+    document.querySelectorAll('.word-tile.speaking').forEach((t) => t.classList.remove('speaking'));
+    speaking.i++;
+    const line = speaking.lines[speaking.i];
+    if (!line) { stopSpeaking(); return; }
+    line.tiles.forEach((t) => t.classList.add('speaking'));
+    const next = speaking.lines[speaking.i + 1];
+    const stanza = next && next.sep && next.sep.classList.contains('stanza-break');
+    speak(lineText(line.tiles), stanza ? 700 : 250);
+  }
+
+  function stopSpeaking() {
+    if (!speaking) return;
+    clearTimeout(speaking.timer);
+    speaking = null;
+    try { speechSynthesis.cancel(); } catch (e) {}
+    document.querySelectorAll('.word-tile.speaking').forEach((t) => t.classList.remove('speaking'));
+    $('readBtn').textContent = '▶ Read aloud';
+    $('readBtn').setAttribute('aria-pressed', 'false');
+  }
+
+  // A click per syllable, high and loud on stresses, so the meter is audible.
+  let beat = null;
+  const BEAT_STEP = 0.3; // seconds per syllable
+
+  function playBeat() {
+    if (beat) { stopBeat(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) { showToast('This browser can’t play sound.'); return; }
+    stopSpeaking();
+    const lines = nonEmptyCanvasLines().filter((l) => l.tiles.length);
+    if (!lines.length) { showToast('Put some words on the canvas first.'); return; }
+    const ctx = new AC();
+    const A = window.TesseraAnalysis;
+    let t = 0.15;
+    const events = [];
+    lines.forEach((line, li) => {
+      const next = lines[li + 1];
+      for (const tile of line.tiles) {
+        const kind = tile.dataset.kind;
+        if (isTextual(kind)) {
+          const stress = kind === 'word' ? A.getWordStress(tile.dataset.word) : A.getLineStress(tile.dataset.word);
+          for (const d of stress) { events.push({ at: t, strong: d === '1', tile: tile }); t += BEAT_STEP; }
+        } else if (kind === 'endpunct' || kind === 'punct') {
+          t += BEAT_STEP * 0.5; // a breath at punctuation
+        }
+      }
+      t += BEAT_STEP * (next && next.sep && next.sep.classList.contains('stanza-break') ? 3 : 1.5);
+    });
+    beat = { ctx: ctx, timers: [] };
+    const start = ctx.currentTime;
+    for (const e of events) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = e.strong ? 880 : 520;
+      gain.gain.setValueAtTime(0.0001, start + e.at);
+      gain.gain.exponentialRampToValueAtTime(e.strong ? 0.35 : 0.1, start + e.at + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + e.at + 0.09);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(start + e.at);
+      osc.stop(start + e.at + 0.1);
+      beat.timers.push(setTimeout(() => {
+        e.tile.classList.add('beat-on');
+        e.tile.classList.toggle('beat-strong', e.strong);
+        setTimeout(() => e.tile.classList.remove('beat-on', 'beat-strong'), BEAT_STEP * 900);
+      }, e.at * 1000));
+    }
+    beat.timers.push(setTimeout(stopBeat, t * 1000 + 200));
+    $('beatBtn').textContent = '■ Stop';
+    $('beatBtn').setAttribute('aria-pressed', 'true');
+  }
+
+  function stopBeat() {
+    if (!beat) return;
+    beat.timers.forEach(clearTimeout);
+    try { beat.ctx.close(); } catch (e) {}
+    beat = null;
+    document.querySelectorAll('.word-tile.beat-on').forEach((t) => t.classList.remove('beat-on', 'beat-strong'));
+    $('beatBtn').textContent = '♪ Beat';
+    $('beatBtn').setAttribute('aria-pressed', 'false');
+  }
+
+  // =================================================================
   // ACTIONS — every [data-action] button routes through here
   // =================================================================
   const ACTIONS = {
@@ -3572,6 +4231,20 @@
       copyText(text).then((ok) => showToast(ok ? 'Copied.' : 'Copy failed.'));
     },
     'export-json': exportBackup,
+    'play': openPlay,
+    'daily': startDailyPrompt,
+    'blackout': () => { $('playDialog').close(); openBlackout(); },
+    'blackout-all': () => blackoutAll(true),
+    'blackout-clear': () => blackoutAll(false),
+    'blackout-invert': blackoutInvert,
+    'blackout-canvas': blackoutToCanvas,
+    'blackout-download': downloadBlackout,
+    'free-toggle': () => setFreeMode(!isFree()),
+    'cut-up': () => { $('playDialog').close(); loadFragments(); },
+    'load-fragments': loadFragments,
+    'n-plus-7': nPlus7,
+    'read-aloud': readAloud,
+    'beat': playBeat,
     'print': () => { $('exportDialog').close(); setTimeout(() => window.print(), 50); },
     'import-json': () => $('importFile').click(),
     'settings': () => openDialog('settingsDialog'),
@@ -3618,6 +4291,11 @@
       scheduleDerived();
     });
     $('addWordForm').addEventListener('submit', addOwnWords);
+    $('challengeSelect').addEventListener('change', (e) => {
+      prefs.challenge = e.target.value;
+      savePrefs();
+      scheduleDerived();
+    });
     $('poemTitle').addEventListener('input', scheduleSave);
     $('poemTitle').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
     $('librarySaveForm').addEventListener('submit', saveToLibrary);
@@ -3666,6 +4344,7 @@
   initResizers();
   initDerived();
   initKeyboard();
+  initBlackout();
   scheduleDerived();
   checkSharedLink().then((shown) => { if (!shown) maybeShowIntro(); });
   setTimeout(loadPronunciationData, 300);

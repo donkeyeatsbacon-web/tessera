@@ -1052,3 +1052,82 @@ body.focus-mode .poem-title { left: max(32px, 12vw); top: 18px; width: auto; rig
   .print-view pre { font: inherit; white-space: pre-wrap; margin: 0; }
   .print-view footer { margin-top: 24pt; font: 9pt -apple-system, system-ui, sans-serif; color: #666; }
 }
+
+/* ---------- PHRASE TILES (cut-up) ---------- */
+.word-tile.tile-phrase { background: var(--tile-line); border-left: 2px solid var(--tile-line-border); }
+
+/* ---------- FRIDGE MAGNETS ---------- */
+.canvas.free-mode { display: block; }
+.canvas.free-mode .word-tile { position: absolute; transition: box-shadow 0.15s; box-shadow: 1px 3px 6px rgba(var(--shadow-rgb), 0.45); }
+.canvas.free-mode .line-break, .canvas.free-mode .meter-bracket { display: none; }
+.canvas.free-mode .hint { position: absolute; }
+
+/* ---------- CHALLENGE BADGE ---------- */
+.challenge-badge {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 84px; z-index: 55;
+  display: flex; align-items: center; gap: 8px; max-width: calc(100% - 32px);
+  padding: 6px 8px 6px 14px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--border-strong);
+  font: 12px -apple-system, system-ui, sans-serif; color: var(--text-soft);
+  box-shadow: 0 4px 14px rgba(var(--shadow-rgb), 0.3);
+}
+.challenge-badge strong { color: var(--accent); font-weight: 600; white-space: nowrap; }
+.challenge-badge span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.challenge-badge.ok { border-color: var(--ok); }
+.challenge-badge.ok span { color: var(--ok); }
+.challenge-badge.bad span { color: var(--bad); }
+.canvas .word-tile.breaks-rule { box-shadow: 0 0 0 2px var(--bad), 0 2px 4px rgba(var(--shadow-rgb), 0.5); }
+
+/* ---------- LISTEN ---------- */
+.listen-controls {
+  position: absolute; right: 12px; bottom: 34px; z-index: 50;
+  display: flex; gap: 6px;
+}
+.listen-controls .tool-btn { padding: 5px 9px; font-size: 11px; }
+.listen-controls .tool-btn[aria-pressed="true"] { background: var(--accent-fill); color: var(--accent-ink); }
+.canvas .word-tile.speaking { background: var(--tile-selected); box-shadow: 0 0 0 2px var(--accent), 0 2px 4px rgba(var(--shadow-rgb), 0.5); }
+.canvas .word-tile.beat-on { box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.6); }
+.canvas .word-tile.beat-on.beat-strong { box-shadow: 0 0 0 3px var(--accent); transform: translateY(-2px); }
+
+/* ---------- PLAY DIALOG ---------- */
+.play-list { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.play-list li {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  padding: 12px 14px; background: var(--inset); border: 1px solid var(--border); border-radius: 6px;
+}
+.play-list li > div { flex: 1 1 260px; display: flex; flex-direction: column; gap: 3px; }
+.play-list strong { font: 16px Georgia, serif; color: var(--text); }
+.play-list span { font-size: 12px; color: var(--text-muted); line-height: 1.45; }
+.play-list select { max-width: 280px; }
+
+/* ---------- BLACKOUT ---------- */
+dialog.modal.blackout-dialog { width: min(900px, calc(100% - 32px)); }
+.blackout-tools { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.blackout-page {
+  background: #fbf8f1; color: #1a1a1a;
+  border-radius: 4px; padding: 28px 32px;
+  font: 17px/1.9 Georgia, "Times New Roman", serif;
+  white-space: pre-wrap;
+  max-height: 58vh; overflow-y: auto;
+  user-select: none; -webkit-user-select: none;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+}
+.bo-word { cursor: pointer; border-radius: 2px; padding: 0 1px; }
+.bo-word:hover { background: rgba(0,0,0,0.08); }
+.bo-word:focus-visible { outline: 2px solid #8a5520; outline-offset: 1px; }
+.bo-word.struck { background: #111; color: #111; }
+
+@media (max-width: 720px) {
+  .listen-controls { bottom: 30px; right: 8px; }
+  .challenge-badge { bottom: 70px; }
+  .blackout-page { padding: 18px; font-size: 15px; }
+}
+
+/* When the canvas column is narrow, the title moves under the toolbar. */
+.composition-column { container-type: inline-size; container-name: composer; }
+@container composer (max-width: 900px) {
+  .poem-title { top: 50px; width: auto; right: 16px; }
+  .target-panel { top: 94px; }
+  .canvas { padding-top: 96px; }
+  body.show-scansion .canvas { padding-top: 108px; }
+}
