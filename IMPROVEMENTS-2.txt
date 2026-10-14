@@ -79,13 +79,16 @@ F. PERFORMANCE & RELIABILITY
 
 G. QUALITY & TOOLING
 --------------------
-26. [S] [DONE] Run the tests automatically on every push (GitHub Actions) and
-       block deploys if they fail.
+26. [S] [NEEDS YOU] Run the tests automatically on every push (GitHub Actions) and
+       block deploys if they fail. The workflow is written (.github/workflows/ci.yml)
+       but GitHub refuses the push until the gh login has the `workflow` scope.
 27. [M] [DONE] Browser tests (Playwright) for drag-and-drop, keyboard moves,
        share links and undo, so UI changes can't silently break them.
 28. [S] [DONE] Linting (ESLint) with a shared config for consistent code.
 29. [S] [DONE] Lighthouse audit — check load speed, accessibility and
-       installability scores and fix what it flags.
+       installability scores and fix what it flags. Live: accessibility, best
+       practices, SEO 100; performance 72–77 (simulated slow phone; was 74 with
+       820 ms more blocking before the fixes).
 30. [M] [SKIPPED] Screen-reader pass with real tools (NVDA / VoiceOver) to confirm
        the tile announcements make sense in practice.
 
