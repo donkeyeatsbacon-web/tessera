@@ -260,7 +260,7 @@ button {
   z-index: 10000;
   position: fixed !important;
 }
-.word-tile.tile-punct, .word-tile.tile-endpunct {
+.word-tile.tile-punct, .word-tile.tile-endpunct, .word-tile.tile-open, .word-tile.tile-close {
   background: var(--tile-punct);
   padding: 5px 9px;
   font-weight: 700;
@@ -1018,4 +1018,37 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after {
 .row-rhyme.rhyme-near { background: rgba(var(--accent-rgb), 0.18); color: var(--accent); }
 body.show-scansion .canvas .word-tile.tile-line[data-scan]::before {
   text-align: left; padding-left: 9px; letter-spacing: 3px; white-space: nowrap; overflow: hidden;
+}
+
+/* ---------- STANZAS & TITLE ---------- */
+.line-break.stanza-break { height: 34px; }
+.poem-title {
+  position: absolute; left: 16px; top: 10px; z-index: 45;
+  width: min(40%, 360px);
+  background: transparent; border: 1px solid transparent; border-radius: 4px;
+  padding: 4px 8px;
+  font: italic 20px var(--canvas-font);
+  color: var(--accent);
+}
+.poem-title::placeholder { color: var(--text-faint); }
+.poem-title:hover { border-color: var(--border); }
+.poem-title:focus { border-color: var(--accent); background: var(--inset); outline: none; }
+.target-panel { top: 56px; }
+body.focus-mode .poem-title { left: max(32px, 12vw); top: 18px; width: auto; right: 80px; font-size: 26px; }
+@media (max-width: 720px) {
+  .poem-title { left: 12px; right: 12px; width: auto; top: 84px; font-size: 18px; }
+  .canvas { padding-top: 128px; }
+  body.show-scansion .canvas { padding-top: 140px; }
+}
+
+/* ---------- PRINT: just the poem ---------- */
+.print-view { display: none; }
+@media print {
+  @page { margin: 2cm; }
+  body { display: block; height: auto; overflow: visible; background: #fff; color: #000; }
+  body > :not(.print-view) { display: none !important; }
+  .print-view { display: block; font: 13pt/1.6 Georgia, "Times New Roman", serif; color: #000; }
+  .print-view h1 { font: italic 20pt Georgia, serif; margin: 0 0 18pt; }
+  .print-view pre { font: inherit; white-space: pre-wrap; margin: 0; }
+  .print-view footer { margin-top: 24pt; font: 9pt -apple-system, system-ui, sans-serif; color: #666; }
 }

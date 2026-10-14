@@ -11,8 +11,13 @@
     { char: ';', kind: 'punct' },
     { char: ':', kind: 'punct' },
     { char: '\u2014', kind: 'punct' },
-    { char: '\u2026', kind: 'endpunct' }
+    { char: '\u2026', kind: 'endpunct' },
+    { char: '\u201C', kind: 'open' },
+    { char: '\u201D', kind: 'close' },
+    { char: '(', kind: 'open' },
+    { char: ')', kind: 'close' }
   ];
+  const TILE_KINDS = ['word', 'line', 'punct', 'endpunct', 'open', 'close'];
 
 
   const {
@@ -101,6 +106,14 @@
   function createLineBreak() {
     const br = document.createElement('div');
     br.className = 'line-break';
+    return br;
+  }
+
+  // A stanza break is a line break with a blank line after it. It keeps the
+  // line-break class so everything that splits lines treats it as one.
+  function createStanzaBreak() {
+    const br = createLineBreak();
+    br.classList.add('stanza-break');
     return br;
   }
 
@@ -461,10 +474,42 @@
     document.addEventListener('touchend', endDrag);
   }
 
+  // While dragging near the top or bottom edge of the canvas or bank,
+  // scroll it so long poems can be rearranged end to end.
+  const AUTOSCROLL_EDGE = 48; // px
+  let autoScroll = null;
+
+  function updateAutoScroll(x, y) {
+    let target = null, speed = 0;
+    for (const el of [$('canvas'), $('wordBank')]) {
+      const r = el.getBoundingClientRect();
+      if (x < r.left || x > r.right || y < r.top - 20 || y > r.bottom + 20) continue;
+      if (y < r.top + AUTOSCROLL_EDGE) speed = -Math.ceil((r.top + AUTOSCROLL_EDGE - y) / 4);
+      else if (y > r.bottom - AUTOSCROLL_EDGE) speed = Math.ceil((y - (r.bottom - AUTOSCROLL_EDGE)) / 4);
+      if (speed) target = el;
+      break;
+    }
+    if (!target) { stopAutoScroll(); return; }
+    if (!autoScroll) {
+      autoScroll = { el: target, speed: speed, x: x, y: y };
+      autoScroll.timer = setInterval(() => {
+        autoScroll.el.scrollTop += autoScroll.speed;
+        if (autoScroll.el.id === 'canvas') showDropIndicator(autoScroll.x, autoScroll.y);
+      }, 16);
+    }
+    Object.assign(autoScroll, { el: target, speed: speed, x: x, y: y });
+  }
+
+  function stopAutoScroll() {
+    if (autoScroll) clearInterval(autoScroll.timer);
+    autoScroll = null;
+  }
+
   function onDrag(e) {
     if (!dragEl) return;
     e.preventDefault();
     const evt = e.touches ? e.touches[0] : e;
+    updateAutoScroll(evt.clientX, evt.clientY);
     dragEl.style.left = (evt.clientX - offsetX) + 'px';
     dragEl.style.top = (evt.clientY - offsetY) + 'px';
 
@@ -481,6 +526,7 @@
 
   function endDrag(e) {
     if (!dragEl) return;
+    stopAutoScroll();
     const evt = e.changedTouches ? e.changedTouches[0] : e;
     const canvas = $('canvas');
     const cRect = canvas.getBoundingClientRect();
@@ -779,10 +825,12 @@
     for (const c of children) {
       if (c.classList.contains('pending-line') && c !== children[children.length - 1]) c.classList.remove('pending-line');
     }
-    // Dedupe consecutive line-breaks (keep the first of each run)
+    // Dedupe consecutive line-breaks (keep the first of each run; a stanza
+    // break anywhere in the run wins)
     for (let i = children.length - 1; i > 0; i--) {
       if (children[i].classList.contains('line-break') &&
           children[i - 1].classList.contains('line-break')) {
+        if (children[i].classList.contains('stanza-break')) children[i - 1].classList.add('stanza-break');
         children[i].remove();
       }
     }
@@ -1233,37 +1281,40 @@
   // no word tiles. Shared by the Copy button and live composition detection.
   function arrangementToText(container) {
     const canvas = container || $('canvas');
-    const children = Array.from(canvas.children).filter(
-      (c) => c.classList && (c.classList.contains('word-tile') || c.classList.contains('line-break'))
-    );
-    if (children.filter((c) => c.classList.contains('word-tile')).length === 0) {
-      return '';
-    }
+    const items = Array.from(canvas.children).filter((c) => c.classList &&
+      (c.classList.contains('word-tile') || c.classList.contains('line-break') || c.classList.contains('meter-bracket')));
+    if (!items.some((c) => c.classList.contains('word-tile'))) return '';
 
     let out = '';
-    let lastWasBreak = true; // treat start as break (no leading space)
-    for (const child of children) {
-      if (child.classList.contains('line-break')) {
-        out += '\n\n';
-        lastWasBreak = true;
-        continue;
-      }
-      const text = child.textContent;
-      const kind = child.dataset.kind;
+    let prev = null; // kind of the previous token on this line; null at line start
+    const newline = (gap) => {
+      out = out.replace(/ +$/, '');
+      if (out) out = out.replace(/\n+$/, '') + gap;
+      prev = null;
+    };
+    for (const c of items) {
+      if (c.classList.contains('stanza-break')) { newline('\n\n'); continue; }
+      if (c.classList.contains('line-break') || c.classList.contains('meter-bracket')) { newline('\n'); continue; }
+      const kind = c.dataset.kind;
+      const text = c.textContent;
+      if (prev === 'line') newline('\n'); // a line tile is a whole line
       if (kind === 'line') {
-        // Each line tile gets its own line in the output.
-        if (out.length > 0 && !out.endsWith('\n')) out += '\n';
+        if (prev !== null) newline('\n');
         out += text;
-        if (!out.endsWith('\n')) out += '\n';
-        lastWasBreak = true; // next tile starts fresh
+        prev = 'line';
         continue;
       }
-      if (!lastWasBreak && kind === 'word') out += ' ';
-      out += text;
-      lastWasBreak = false;
+      out += (needsSpaceBefore(prev, kind, text) ? ' ' : '') + text;
+      prev = text === '\u2014' ? 'dash' : kind;
     }
-    out = out.replace(/\n+$/, ''); // trim trailing newlines
-    return out;
+    return out.replace(/\s+$/, '');
+  }
+
+  // Words and opening quotes get a space before them, except at the start of
+  // a line, right after an opening quote, or after a closed-up em dash.
+  function needsSpaceBefore(prev, kind, text) {
+    if (prev === null || prev === 'open' || prev === 'dash') return false;
+    return (kind === 'word' || kind === 'open') && text !== '\u2014';
   }
 
   function copyArrangement() {
@@ -1351,6 +1402,8 @@
       if (!child.classList) continue;
       if (child.classList.contains('word-tile')) {
         canvasItems.push(Object.assign({ t: 'w' }, serializeTile(child)));
+      } else if (child.classList.contains('stanza-break')) {
+        canvasItems.push({ t: 's' });
       } else if (child.classList.contains('line-break')) {
         canvasItems.push({ t: 'b' });
       } else if (child.classList.contains('meter-bracket')) {
@@ -1364,6 +1417,7 @@
     }
     return {
       input: $('input').value,
+      title: $('poemTitle').value,
       sortMode: sortMode,
       collapsed: $('pasteColumn').classList.contains('collapsed'),
       bankCounter: bankOrderCounter,
@@ -1413,6 +1467,7 @@
   // for restoring on page load and for stepping through undo/redo history.
   function applySnapshot(saved) {
     $('input').value = saved.input || '';
+    $('poemTitle').value = saved.title || '';
     $('pasteColumn').classList.toggle('collapsed', !!saved.collapsed);
     if (saved.sortMode) {
       sortMode = saved.sortMode;
@@ -1439,6 +1494,8 @@
         if (item.t === 'w') {
           frag.appendChild(restoreTile(item));
           canvasHasContent = true;
+        } else if (item.t === 's') {
+          frag.appendChild(createStanzaBreak());
         } else if (item.t === 'b') {
           frag.appendChild(createLineBreak());
         } else if (item.t === 'm') {
@@ -1962,8 +2019,15 @@
     });
   }
 
-  function breakAfter(tile) {
-    const br = createLineBreak();
+  // New line (or, with stanza=true, a new stanza) after a tile. Asking for a
+  // stanza where a line break already is upgrades that break.
+  function breakAfter(tile, stanza) {
+    const next = tile.nextElementSibling;
+    if (stanza && next && next.classList.contains('line-break')) {
+      next.classList.add('stanza-break');
+      return;
+    }
+    const br = stanza ? createStanzaBreak() : createLineBreak();
     if (!tile.nextElementSibling || !/\b(word-tile|line-break|meter-bracket)\b/.test(tile.nextElementSibling.className)) {
       br.classList.add('pending-line'); // nothing follows yet: keep it for the next word
     }
@@ -2178,6 +2242,7 @@
       items.push(['Move line up', () => moveLine(tile, -1)]);
       items.push(['Move line down', () => moveLine(tile, 1)]);
       items.push(['New line after this', () => breakAfter(tile)]);
+      items.push(['New stanza after this', () => breakAfter(tile, true)]);
     }
     if (textual && !locked) items.push(['Delete tile', () => deleteTile(tile), true]);
     return items;
@@ -2331,10 +2396,10 @@
       else { moveTileToLine(tile, dir); afterKeyboardMove(tile); }
     } else if (key === 'Enter') {
       if (here) {
-        breakAfter(tile);
+        breakAfter(tile, e.shiftKey);
         refreshCanvas();
         tile.focus();
-        announce('New line started after “' + tile.textContent + '”.');
+        announce((e.shiftKey ? 'New stanza' : 'New line') + ' started after “' + tile.textContent + '”.');
       } else {
         const siblings = tilesIn(tile.parentElement);
         const next = siblings[siblings.indexOf(tile) + 1] || siblings[siblings.indexOf(tile) - 1];
@@ -2999,6 +3064,7 @@
     const counter = bankOrderCounter;
     for (const item of (items || []).slice(0, 20000)) {
       if (item.t === 'w' && typeof item.w === 'string') box.appendChild(restoreTile(item));
+      else if (item.t === 's') box.appendChild(createStanzaBreak());
       else if (item.t === 'b' || item.t === 'm') box.appendChild(createLineBreak());
     }
     bankOrderCounter = counter;
@@ -3018,6 +3084,10 @@
       return { t: 'm', n: Number(t.n) || 1, s: Number(t.s) || 0, r: /^[A-Za-z–]$/.test(t.r || '') ? t.r : '' };
     }) : [];
     s.input = typeof s.input === 'string' ? s.input : '';
+    s.title = typeof s.title === 'string' ? s.title.slice(0, 120) : '';
+    const fixKind = (t) => (t.t === 'w' || !t.t) && TILE_KINDS.indexOf(t.k) === -1 ? Object.assign({}, t, { k: 'word' }) : t;
+    s.bank = s.bank.map(fixKind);
+    s.canvas = s.canvas.map(fixKind);
     const maxBo = s.bank.concat(s.canvas).reduce((m, t) => Math.max(m, Number(t.bo) || 0), 0);
     s.bankCounter = Math.max(Number(s.bankCounter) || 0, maxBo + 1);
     return s;
@@ -3042,7 +3112,7 @@
     const list = $('libraryList');
     list.textContent = '';
     const current = lib.poems.find((p) => p.id === lib.currentId);
-    $('libraryName').value = current ? current.name : '';
+    $('libraryName').value = current ? current.name : $('poemTitle').value.trim();
     $('librarySaveBtn').textContent = current ? 'Save' : 'Save current';
     if (!lib.poems.length) {
       const li = document.createElement('li');
@@ -3101,7 +3171,7 @@
       current.state = state;
       current.updated = Date.now();
     } else {
-      const poem = { id: newId(), name: typed || 'Untitled poem ' + (lib.poems.length + 1), updated: Date.now(), state: state };
+      const poem = { id: newId(), name: typed || $('poemTitle').value.trim() || 'Untitled poem ' + (lib.poems.length + 1), updated: Date.now(), state: state };
       lib.poems.push(poem);
       lib.currentId = poem.id;
     }
@@ -3231,10 +3301,49 @@
     return JSON.parse(json);
   }
 
+  // Share format 2: one string per list, one item per line, the first
+  // character saying what it is. Much shorter than JSON objects, and it
+  // compresses better. Format 1 links (plain JSON) still open.
+  const ITEM_CODES = { word: 'w', line: 'l', punct: 'p', endpunct: 'e', open: 'o', close: 'c' };
+  const CODE_KINDS = { w: 'word', l: 'line', p: 'punct', e: 'endpunct', o: 'open', c: 'close' };
+
+  function packItems(items) {
+    return items.map((it) => {
+      if (it.t === 'b') return 'b';
+      if (it.t === 's') return 's';
+      if (it.t === 'm') return 'm' + it.n + ',' + it.s + ',' + (it.r || '');
+      const code = ITEM_CODES[it.k] || 'w';
+      return (it.mc ? code.toUpperCase() : code) + it.w.replace(/\n/g, ' ');
+    }).join('\n');
+  }
+
+  function unpackItems(text) {
+    if (typeof text !== 'string' || !text) return [];
+    return text.split('\n').map((line) => {
+      const c = line[0];
+      if (line === 'b') return { t: 'b' };
+      if (line === 's') return { t: 's' };
+      if (c === 'm') {
+        const [n, s, r] = line.slice(1).split(',');
+        return { t: 'm', n: Number(n), s: Number(s), r: r || '' };
+      }
+      const kind = CODE_KINDS[c.toLowerCase()];
+      if (!kind) return null;
+      const item = { t: 'w', w: line.slice(1), k: kind };
+      if (c !== c.toLowerCase()) item.mc = 1;
+      return item;
+    }).filter(Boolean);
+  }
+
   async function buildShareUrl() {
     const snap = snapshotState();
-    const payload = { v: 1, c: snap.canvas };
-    if ($('shareIncludeSource').checked) { payload.i = snap.input; payload.b = snap.bank; }
+    const payload = { v: 2, c: packItems(snap.canvas) };
+    if (snap.title) payload.t = snap.title;
+    if ($('shareIncludeSource').checked) {
+      payload.i = snap.input;
+      // Only the words still in the bank; the poem's own words travel in c.
+      if (snap.bank.length) payload.b = packItems(snap.bank.map((t) => Object.assign({ t: 'w' }, t)));
+    }
     return location.origin + location.pathname + '#p=' + (await encodeShare(payload));
   }
 
@@ -3264,7 +3373,9 @@
     if (!m) return false;
     try {
       const raw = await decodeShare(m[1]);
-      pendingShared = sanitizeState({ canvas: raw.c, bank: raw.b, input: raw.i });
+      pendingShared = raw.v === 2
+        ? sanitizeState({ canvas: unpackItems(raw.c), bank: unpackItems(raw.b), input: raw.i, title: raw.t })
+        : sanitizeState({ canvas: raw.c, bank: raw.b, input: raw.i });
     } catch (e) {
       pendingShared = null;
       clearShareHash();
@@ -3272,6 +3383,7 @@
       return false;
     }
     $('sharedPoem').textContent = textFromItems(pendingShared.canvas) || '(an empty poem)';
+    $('sharedTitle').textContent = pendingShared.title || 'A poem';
     $('sharedSource').textContent = pendingShared.input
       ? 'Rearranged from: “' + snippet(pendingShared.input, 14) + '”'
       : '';
@@ -3285,7 +3397,7 @@
     pendingShared = null;
     const stashed = stashWorkspace('Before opening a shared poem');
     openState({
-      input: shared.input, bank: shared.bank, canvas: shared.canvas,
+      input: shared.input, bank: shared.bank, canvas: shared.canvas, title: shared.title,
       sortMode: sortMode, collapsed: $('pasteColumn').classList.contains('collapsed')
     });
     const lib = loadLibrary();
@@ -3310,6 +3422,7 @@
       if (child.classList.contains('line-break') || child.classList.contains('meter-bracket')) {
         if (cur.length) lines.push(cur);
         cur = [];
+        if (child.classList.contains('stanza-break') && lines.length) lines.push([]); // blank line
       } else if (child.classList.contains('word-tile')) {
         if (child.dataset.kind === 'line') {
           if (cur.length) lines.push(cur);
@@ -3340,6 +3453,7 @@
 
   function openExport() {
     openDialog('exportDialog');
+    $('imgTitle').value = $('poemTitle').value.trim();
     let canShareFiles = false;
     try {
       canShareFiles = !!(navigator.canShare && navigator.canShare({ files: [new File([''], 'x.png', { type: 'image/png' })] }));
@@ -3364,10 +3478,29 @@
     }
     if (fmt === 'attributed') {
       const src = $('input').value.trim();
-      return plain + (src ? '\n\n— rearranged from “' + snippet(src, 10) + '”' : '') +
+      const title = $('poemTitle').value.trim();
+      return (title ? title + '\n\n' : '') + plain + (src ? '\n\n— rearranged from “' + snippet(src, 10) + '”' : '') +
         '\nMade with Tessera · https://donkeyeatsbacon-web.github.io/tessera/';
     }
     return plain;
+  }
+
+  // Ctrl+P (or Export \u2192 Print) prints only the poem; see @media print.
+  function fillPrintView() {
+    const view = $('printView');
+    view.textContent = '';
+    const title = $('poemTitle').value.trim();
+    if (title) {
+      const h = document.createElement('h1');
+      h.textContent = title;
+      view.appendChild(h);
+    }
+    const pre = document.createElement('pre');
+    pre.textContent = arrangementToText() || $('input').value;
+    view.appendChild(pre);
+    const foot = document.createElement('footer');
+    foot.textContent = 'Made with Tessera';
+    view.appendChild(foot);
   }
 
   function exportBackup() {
@@ -3439,6 +3572,7 @@
       copyText(text).then((ok) => showToast(ok ? 'Copied.' : 'Copy failed.'));
     },
     'export-json': exportBackup,
+    'print': () => { $('exportDialog').close(); setTimeout(() => window.print(), 50); },
     'import-json': () => $('importFile').click(),
     'settings': () => openDialog('settingsDialog'),
     'focus': () => toggleFocus(),
@@ -3484,6 +3618,8 @@
       scheduleDerived();
     });
     $('addWordForm').addEventListener('submit', addOwnWords);
+    $('poemTitle').addEventListener('input', scheduleSave);
+    $('poemTitle').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
     $('librarySaveForm').addEventListener('submit', saveToLibrary);
     $('findForm').addEventListener('submit', searchPoems);
     $('shareIncludeSource').addEventListener('change', refreshShareUrl);
@@ -3495,6 +3631,7 @@
       e.target.value = '';
     });
     window.addEventListener('hashchange', checkSharedLink);
+    window.addEventListener('beforeprint', fillPrintView);
   }
 
   // =================================================================

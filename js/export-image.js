@@ -22,15 +22,21 @@
     }
   };
 
-  // Words get a leading space; punctuation hugs the word before it.
+  // Same spacing as the app's text output: words and opening quotes get a
+  // space before them; punctuation hugs the word before; em dashes close up.
   function joinLine(tokens) {
     let out = '';
+    let prev = null;
     for (const t of tokens) {
-      if (out && (t.kind === 'word' || t.kind === 'line')) out += ' ';
-      out += t.text;
+      const spaced = prev !== null && prev !== 'open' && prev !== 'dash' &&
+        (t.kind === 'word' || t.kind === 'line' || t.kind === 'open') && t.text !== '\u2014';
+      out += (spaced ? ' ' : '') + t.text;
+      prev = t.text === '\u2014' ? 'dash' : t.kind;
     }
     return out;
   }
+
+  const isPunctKind = (k) => k === 'punct' || k === 'endpunct' || k === 'open' || k === 'close';
 
   function layout(ctx, lines, style, size, fontFamily) {
     const maxX = WIDTH - PAD;
@@ -44,9 +50,10 @@
       const rowH = tileH + gap;
       ctx.font = size + 'px ' + fontFamily;
       for (const line of lines) {
+        if (!line.length) { y += Math.round(rowH * 0.5); continue; } // stanza gap
         let x = PAD;
         for (const tok of line) {
-          const isPunct = tok.kind === 'punct' || tok.kind === 'endpunct';
+          const isPunct = isPunctKind(tok.kind);
           const w = Math.ceil(ctx.measureText(tok.text).width) + padX * 2;
           if (x + w > maxX && x > PAD) { x = PAD + size; y += rowH; wraps++; }
           items.push({ type: 'tile', x: x, y: y, w: Math.min(w, maxX - x), h: tileH, tok: tok, punct: isPunct });
@@ -59,6 +66,7 @@
     const lineH = Math.round(size * 1.5);
     ctx.font = size + 'px ' + fontFamily;
     for (const line of lines) {
+      if (!line.length) { y += Math.round(lineH * 0.6); continue; } // stanza gap
       const words = joinLine(line).split(' ');
       let cur = '';
       for (const w of words) {
@@ -89,7 +97,10 @@
   }
 
   function renderPoemImage(canvas, opts) {
-    const lines = (opts.lines || []).filter((l) => l.length);
+    // Empty lines are stanza gaps; drop any at the start or end.
+    const lines = (opts.lines || []).slice();
+    while (lines.length && !lines[0].length) lines.shift();
+    while (lines.length && !lines[lines.length - 1].length) lines.pop();
     const style = opts.style === 'typeset' ? 'typeset' : 'tiles';
     const theme = THEMES[opts.theme] || THEMES.dark;
     const fontFamily = opts.font || 'Georgia, "Times New Roman", serif';

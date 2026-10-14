@@ -144,6 +144,8 @@
     <button class="tool-btn icon" data-action="focus" title="Focus mode (F)" aria-label="Focus mode" aria-pressed="false" id="focusBtn">&#9635;</button>
     <button class="tool-btn icon help-btn" data-action="help" title="How Tessera works" aria-label="Help">?</button>
   </div>
+  <label class="visually-hidden" for="poemTitle">Poem title</label>
+  <input id="poemTitle" class="poem-title" type="text" maxlength="120" placeholder="Untitled poem" autocomplete="off">
   <div class="target-panel" id="targetPanel" hidden aria-live="polite"></div>
   <div class="canvas" id="canvas" role="group" aria-label="Poem canvas" tabindex="-1">
     <div class="hint" id="hint">
@@ -199,6 +201,7 @@
       <tr><th colspan="2">On a focused tile (<kbd>Tab</kbd> to reach tiles)</th></tr>
       <tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd> <kbd>&uarr;</kbd> <kbd>&darr;</kbd></td><td>Move focus between tiles</td></tr>
       <tr><td><kbd>Enter</kbd></td><td>Bank tile: add to the end of the poem. Canvas tile: start a new line after it</td></tr>
+      <tr><td><kbd>Shift</kbd> <kbd>Enter</kbd></td><td>Canvas tile: start a new stanza after it</td></tr>
       <tr><td><kbd>Alt</kbd> + arrows</td><td>Move the tile left / right, or to the line above / below</td></tr>
       <tr><td><kbd>Space</kbd></td><td>Select / deselect</td></tr>
       <tr><td><kbd>F2</kbd></td><td>Edit the word</td></tr>
@@ -310,6 +313,7 @@
         <button class="btn-secondary" data-action="copy-as" data-format="plain">Copy as plain text</button>
         <button class="btn-secondary" data-action="copy-as" data-format="markdown">Copy as Markdown</button>
         <button class="btn-secondary" data-action="copy-as" data-format="attributed">Copy with attribution</button>
+        <button class="btn-secondary" data-action="print">Print…</button>
       </div>
       <h3 class="export-h">Backup</h3>
       <p class="dialog-sub">A .json file with your workspace and every Library poem.</p>
@@ -365,6 +369,8 @@
     <button class="btn-primary" data-action="open-shared">Open a copy to remix</button>
   </div>
 </dialog>
+
+<div class="print-view" id="printView" aria-hidden="true"></div>
 
 <script src="js/analysis.js"></script>
 <script src="js/samples.js"></script>
