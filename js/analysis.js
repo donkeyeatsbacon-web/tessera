@@ -148,28 +148,62 @@
   // rhyme-tail tables, then one "prefixLen word,stressIdx,tailIdx.tailIdx"
   // line per word (front-coded against the previous word, base 36 numbers).
   function loadPronunciations(data) {
-    if (typeof data !== 'string') return 0;
+    const parser = pronunciationParser(data);
+    if (!parser) return 0;
+    parser.step(Infinity);
+    return parser.finish();
+  }
+
+  // Same as loadPronunciations, but parses in ~8 ms slices and yields to
+  // the browser between them, so the page never freezes while it loads.
+  function loadPronunciationsAsync(data, sliceMs) {
+    const parser = pronunciationParser(data);
+    if (!parser) return Promise.resolve(0);
+    const budget = sliceMs || 8;
+    return new Promise((resolve) => {
+      const tick = () => {
+        const until = Date.now() + budget;
+        if (parser.step(until)) resolve(parser.finish());
+        else setTimeout(tick, 0);
+      };
+      tick();
+    });
+  }
+
+  function pronunciationParser(data) {
+    if (typeof data !== 'string') return null;
     const nl = data.indexOf('\n');
     const head = JSON.parse(data.slice(0, nl));
     const stress = new Map(), rhyme = new Map();
     let prev = '';
     let i = nl + 1;
-    while (i < data.length) {
-      let j = data.indexOf('\n', i);
-      if (j === -1) j = data.length;
-      const line = data.slice(i, j);
-      i = j + 1;
-      if (!line) continue;
-      const parts = line.split(',');
-      const keep = parseInt(parts[0][0], 36);
-      const word = prev.slice(0, keep) + parts[0].slice(1);
-      prev = word;
-      stress.set(word, head.stress[parseInt(parts[1], 36)]);
-      rhyme.set(word, parts[2].split('.').map((t) => head.tails[parseInt(t, 36)]));
-    }
-    PRON_STRESS = stress;
-    PRON_RHYME = rhyme;
-    return stress.size;
+    return {
+      // Parse lines until the deadline (ms timestamp); true when done.
+      step(until) {
+        let n = 0;
+        while (i < data.length) {
+          let j = data.indexOf('\n', i);
+          if (j === -1) j = data.length;
+          const line = data.slice(i, j);
+          i = j + 1;
+          if (line) {
+            const parts = line.split(',');
+            const keep = parseInt(parts[0][0], 36);
+            const word = prev.slice(0, keep) + parts[0].slice(1);
+            prev = word;
+            stress.set(word, head.stress[parseInt(parts[1], 36)]);
+            rhyme.set(word, parts[2].split('.').map((t) => head.tails[parseInt(t, 36)]));
+          }
+          if (++n % 500 === 0 && Date.now() >= until) return false;
+        }
+        return true;
+      },
+      finish() {
+        PRON_STRESS = stress;
+        PRON_RHYME = rhyme;
+        return stress.size;
+      }
+    };
   }
 
   function hasPronunciations() {
@@ -282,7 +316,7 @@
     if (!rawWord) return '';
     // Normalize: lowercase, strip common contractions for lookup
     const w = rawWord.toLowerCase().replace(/[\u2019']s$|[\u2019']re$|[\u2019']ve$|[\u2019']d$|[\u2019']m$|[\u2019']ll$/, '');
-    if (STRESS_DICT.hasOwnProperty(w)) return STRESS_DICT[w];
+    if (Object.hasOwn(STRESS_DICT, w)) return STRESS_DICT[w];
     const full = lookupPron(PRON_STRESS, rawWord);
     if (full) return full;
     return heuristicStress(w);
@@ -329,10 +363,7 @@
 
   // Stress pattern for an entire line (concatenation of word stresses).
   function getLineStress(line) {
-    const wordRe = (function () {
-      try { return /[\p{L}\p{N}][\p{L}\p{N}'\u2019\-]*/gu; }
-      catch (e) { return /[A-Za-z0-9][A-Za-z0-9'\u2019\-]*/g; }
-    })();
+    const wordRe = /[\p{L}\p{N}][\p{L}\p{N}'\u2019-]*/gu;
     const words = line.match(wordRe) || [];
     let pattern = '';
     for (const w of words) pattern += getWordStress(w);
@@ -763,12 +794,12 @@
   function countSyllables(word) {
     if (!word) return 1;
     const full = lookupPron(PRON_STRESS, word);
-    if (full && !STRESS_DICT.hasOwnProperty(word.toLowerCase())) return full.length;
+    if (full && !Object.hasOwn(STRESS_DICT, word.toLowerCase())) return full.length;
     const lower = word.toLowerCase().replace(/[^a-z]/g, '');
     if (!lower) return 1;
 
     // 1) Direct lookup
-    if (STRESS_DICT.hasOwnProperty(lower)) return STRESS_DICT[lower].length;
+    if (Object.hasOwn(STRESS_DICT, lower)) return STRESS_DICT[lower].length;
 
     // 2) Stem-based lookup for common inflections
     const stemTries = [
@@ -785,7 +816,7 @@
     for (const t of stemTries) {
       if (lower.length > t.suffix.length + 1 && lower.endsWith(t.suffix)) {
         const stem = lower.slice(0, -t.suffix.length);
-        if (STRESS_DICT.hasOwnProperty(stem)) {
+        if (Object.hasOwn(STRESS_DICT, stem)) {
           // -ed normally doesn't add a syllable, but after t/d it does (wanted, loaded)
           let extra = t.delta;
           if (t.suffix === 'ed') {
@@ -831,7 +862,7 @@
   // Suffix-aware stress used specifically for finding the rhyme position. More
   // aggressive than the meter heuristic at recognizing feminine/masculine endings.
   function rhymeStress(word) {
-    if (STRESS_DICT.hasOwnProperty(word)) return STRESS_DICT[word];
+    if (Object.hasOwn(STRESS_DICT, word)) return STRESS_DICT[word];
     const full = lookupPron(PRON_STRESS, word);
     if (full) return full;
     const syllables = countSyllables(word);
@@ -926,7 +957,7 @@
   // Spelling-based rhyme key, used when a word has no known pronunciation.
   function orthographicRhymeKey(word) {
     if (!word) return '';
-    let w = word.toLowerCase().replace(/[\u2019']/g, '').replace(/[^a-z]/g, '');
+    const w = word.toLowerCase().replace(/[\u2019']/g, '').replace(/[^a-z]/g, '');
     if (!w) return '';
 
     // Strip silent terminal 'e' if preceded by a consonant and the word has another vowel.
@@ -994,10 +1025,7 @@
 
   // Pull the final word out of a line (ignoring trailing punctuation).
   function getLastWord(line) {
-    const re = (function () {
-      try { return /[\p{L}\p{N}][\p{L}\p{N}'\u2019\-]*/gu; }
-      catch (e) { return /[A-Za-z0-9][A-Za-z0-9'\u2019\-]*/g; }
-    })();
+    const re = /[\p{L}\p{N}][\p{L}\p{N}'\u2019-]*/gu;
     const matches = line.match(re);
     if (!matches || matches.length === 0) return '';
     return matches[matches.length - 1];
@@ -1056,7 +1084,7 @@
       'ABBAABBACDEDCE':  'Petrarchan sonnet (variant)',
       'ABABBCBCCDCDEE':  'Spenserian sonnet'
     };
-    if (exact.hasOwnProperty(scheme)) return exact[scheme];
+    if (Object.hasOwn(exact, scheme)) return exact[scheme];
 
     if (scheme === 'AA') return 'rhymed couplet';
     // All same letter: monorhyme
@@ -1109,10 +1137,7 @@
       .filter((l) => l.length > 0);
     if (lines.length === 0) return null;
 
-    const wordRe = (function () {
-      try { return /[\p{L}\p{N}][\p{L}\p{N}'\u2019\-]*/gu; }
-      catch (e) { return /[A-Za-z0-9][A-Za-z0-9'\u2019\-]*/g; }
-    })();
+    const wordRe = /[\p{L}\p{N}][\p{L}\p{N}'\u2019-]*/gu;
 
     const lineMeters = lines.map((line) => {
       const words = line.match(wordRe) || [];
@@ -1168,17 +1193,6 @@
     return misses;
   }
 
-  // True if all scheme letters are the same.
-  function isMonorhyme(scheme) {
-    if (!scheme || scheme.length < 2) return false;
-    const first = scheme[0];
-    if (first === '\u2013') return false;
-    for (let i = 1; i < scheme.length; i++) {
-      if (scheme[i] !== first) return false;
-    }
-    return true;
-  }
-
   // Strip everything but lowercase letters/digits to compare two lines for refrains.
   function compareKey(s) {
     return (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1186,10 +1200,7 @@
 
   // Count words in a line (using the same word regex as the rest of the code).
   function countWordsIn(line) {
-    const re = (function () {
-      try { return /[\p{L}\p{N}][\p{L}\p{N}'\u2019\-]*/gu; }
-      catch (e) { return /[A-Za-z0-9][A-Za-z0-9'\u2019\-]*/g; }
-    })();
+    const re = /[\p{L}\p{N}][\p{L}\p{N}'\u2019-]*/gu;
     const m = line.match(re);
     return m ? m.length : 0;
   }
@@ -1278,9 +1289,9 @@
       if (ctx.n !== 7) return null;
       if (!ctx.wordCounts.every(function (c) { return c === 7; })) return null;
       for (const lm of ctx.lineMeters) {
-        const words = (lm.text || '').match(/[A-Za-z\u2019'\-]+/g) || [];
+        const words = (lm.text || '').match(/[A-Za-z\u2019'-]+/g) || [];
         for (const w of words) {
-          const letters = w.replace(/[\u2019'\-]/g, '');
+          const letters = w.replace(/[\u2019'-]/g, '');
           if (letters.length > 7) return null;
         }
       }
@@ -1291,7 +1302,7 @@
     { name: 'double-dactyl', label: 'Double dactyl', test: function (ctx) {
       if (ctx.n !== 8) return null;
       const line7 = (ctx.lineMeters[6].text || '').trim();
-      const words = line7.match(/[A-Za-z\u2019'\-]+/g) || [];
+      const words = line7.match(/[A-Za-z\u2019'-]+/g) || [];
       if (words.length !== 1) return null;
       const syl = countSyllables(words[0]);
       if (syl < 5 || syl > 7) return null;
@@ -1961,10 +1972,7 @@
       // Every even-indexed line (the "echoes", 0-indexed 1, 3, 5...) must be
       // 1-2 words, and its first word must end-match the previous line's last
       // word (either identical or a suffix of it).
-      const wordRe = (function () {
-        try { return /[\p{L}\p{N}][\p{L}\p{N}'\u2019\-]*/gu; }
-        catch (e) { return /[A-Za-z0-9][A-Za-z0-9'\u2019\-]*/g; }
-      })();
+      const wordRe = /[\p{L}\p{N}][\p{L}\p{N}'\u2019-]*/gu;
       function last(s) {
         const m = (s || '').match(wordRe);
         return m ? m[m.length - 1].toLowerCase() : '';
@@ -1997,7 +2005,7 @@
       // Extract last word of each even-indexed line (lines 2, 4, 6, ...).
       const lastWords = [];
       for (let i = 1; i < ctx.n; i += 2) {
-        const m = (ctx.lineMeters[i].text || '').match(/[A-Za-z\u2019'\-]+/g);
+        const m = (ctx.lineMeters[i].text || '').match(/[A-Za-z\u2019'-]+/g);
         if (!m || !m.length) return null;
         lastWords.push(m[m.length - 1].toLowerCase().replace(/[\u2019']/g, ''));
       }
@@ -2181,7 +2189,7 @@
   function dominantFootName(lineMeters) {
     const totals = { iambic: 0, trochaic: 0, anapestic: 0, dactylic: 0, irregular: 0 };
     for (const lm of lineMeters) {
-      if (lm.footScore >= 0.65 && totals.hasOwnProperty(lm.foot)) {
+      if (lm.footScore >= 0.65 && Object.hasOwn(totals, lm.foot)) {
         totals[lm.foot] += lm.footScore;
       } else {
         totals.irregular += 1;
@@ -2203,7 +2211,7 @@
   return {
     STRESS_DICT, PATTERN_DESCRIPTIONS, KNOWN_PROPER_NOUNS, ARTICLES, FORM_DEFINITIONS,
     getWordStress, getLineStress, classifyLineMeter, namedMeter,
-    loadPronunciations, hasPronunciations, setPronunciationMaps,
+    loadPronunciations, loadPronunciationsAsync, hasPronunciations, setPronunciationMaps,
     countSyllables, getRhymeKey, getRhymeKeys, rhymesWith, rhymeQuality, getLastWord, detectRhymeScheme, nameRhymeScheme,
     analyzeSourceMeter, detectPattern, schemeMisses
   };

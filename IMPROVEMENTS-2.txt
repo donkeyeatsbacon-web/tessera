@@ -8,90 +8,90 @@ analytics and #39 custom domain, which need your accounts.)
 
 A. NEW WAYS TO WRITE
 --------------------
- 1. [M] Blackout / erasure mode — show the source text as a page and let
+ 1. [M] [DONE] Blackout / erasure mode — show the source text as a page and let
        people strike out words until a poem remains, then export it as an
        image with the black bars (a classic found-poetry form).
- 2. [M] Free-placement "fridge magnet" mode — tiles sit wherever you drop
+ 2. [M] [DONE] Free-placement "fridge magnet" mode — tiles sit wherever you drop
        them (x/y), tilted slightly, instead of flowing in lines.
- 3. [S] Cut-up mode — chop the source into random 2–4 word fragments
+ 3. [S] [DONE] Cut-up mode — chop the source into random 2–4 word fragments
        (William Burroughs style) instead of single words.
- 4. [M] Constraint challenges — lipogram (no letter "e"), only words from
+ 4. [M] [DONE] Constraint challenges — lipogram (no letter "e"), only words from
        one sentence, every word must start with the same letter, etc.,
        with a live pass/fail badge.
- 5. [S] N+7 (Oulipo) button — swap every noun for the noun seven entries
+ 5. [S] [DONE] N+7 (Oulipo) button — swap every noun for the noun seven entries
        later in the bank's alphabetical order.
- 6. [M] Daily prompt — the same short public-domain text for everyone each
+ 6. [M] [DONE] Daily prompt — the same short public-domain text for everyone each
        day (picked by date, no server needed) plus a target form.
 
 B. ANALYSIS ACCURACY
 --------------------
- 7. [M] Smarter couplet and rhyme detection — The Tyger shows as "free
+ 7. [M] [DONE] Smarter couplet and rhyme detection — The Tyger shows as "free
        verse" because one eye-rhyme (eye / symmetry) breaks the pattern.
        Allow one or two imperfect rhymes before rejecting a form.
- 8. [S] Better rhyme-scheme names — a 2-line "AA" is labelled
+ 8. [S] [DONE] Better rhyme-scheme names — a 2-line "AA" is labelled
        "monorhyme"; it should say "rhymed couplet".
- 9. [M] Slant and eye rhymes — show near-rhymes (love / move,
+ 9. [M] [DONE] Slant and eye rhymes — show near-rhymes (love / move,
        temperate / date) as a softer match in hints and the checklist.
-10. [S] Stress marks for whole-line tiles, not only single words.
-11. [M] More analysis tests — a corpus of ~30 public-domain poems with
+10. [S] [DONE] Stress marks for whole-line tiles, not only single words.
+11. [M] [DONE] More analysis tests — a corpus of ~30 public-domain poems with
        their known forms, so detection changes can be measured.
 
 C. SOUND
 --------
-12. [S] Read aloud — speak the poem with the browser's built-in speech
+12. [S] [DONE] Read aloud — speak the poem with the browser's built-in speech
        (speechSynthesis), pausing at line breaks.
-13. [M] Beat view — tap or play a metronome pulse on stressed syllables
+13. [M] [DONE] Beat view — tap or play a metronome pulse on stressed syllables
        to hear the meter.
 
 D. POEM STRUCTURE
 -----------------
-14. [M] Separate lines from stanzas — right now every line break becomes a
+14. [M] [DONE] Separate lines from stanzas — right now every line break becomes a
        blank line when copied. Add a real "new stanza" break (blank line)
        distinct from a plain line break.
-15. [S] Poem titles — a title field stored with the poem, used in the
+15. [S] [DONE] Poem titles — a title field stored with the poem, used in the
        Library, share links, image and Markdown exports.
-16. [S] Smarter punctuation spacing — attach opening quotes and
+16. [S] [DONE] Smarter punctuation spacing — attach opening quotes and
        parentheses to the next word, and give em dashes the right spacing.
-17. [S] Auto-scroll the canvas while dragging near its top or bottom
+17. [S] [DONE] Auto-scroll the canvas while dragging near its top or bottom
        edge (long poems are hard to rearrange today).
 
 E. SHARING & COMMUNITY
 ----------------------
-18. [L] Public gallery — publish poems to a shared page others can browse
+18. [L] [SKIPPED] Public gallery — publish poems to a shared page others can browse
        and remix. Needs a small backend (e.g. Cloudflare Workers + D1).
-19. [L] Sync across devices — sign in and keep the Library in the cloud
+19. [L] [SKIPPED] Sync across devices — sign in and keep the Library in the cloud
        (same backend as #18).
-20. [S] Shorter share links — strip unused bank words or switch to a
+20. [S] [DONE] Shorter share links — strip unused bank words or switch to a
        more compact encoding so long poems fit in chat apps.
-21. [S] Print stylesheet — Ctrl+P prints just the poem, nicely typeset.
+21. [S] [DONE] Print stylesheet — Ctrl+P prints just the poem, nicely typeset.
 
 F. PERFORMANCE & RELIABILITY
 ----------------------------
-22. [M] Faster big texts — very large pastes (5,000+ tiles) get slow;
+22. [M] [DONE] Faster big texts — very large pastes (5,000+ tiles) get slow;
        render the bank lazily and batch DOM updates.
-23. [S] Smaller dictionary download — the 1 MB pronunciation file could
+23. [S] [DONE] Smaller dictionary download — the 1 MB pronunciation file could
        be trimmed to common words or split by first letter and loaded on
        demand.
-24. [S] "New version available" banner — the offline cache shows old
+24. [S] [DONE] "New version available" banner — the offline cache shows old
        files on the first visit after a deploy; offer a Reload button.
-25. [M] Library in IndexedDB — localStorage is capped around 5 MB, so a
+25. [M] [DONE] Library in IndexedDB — localStorage is capped around 5 MB, so a
        big Library could fill it; IndexedDB holds far more.
 
 G. QUALITY & TOOLING
 --------------------
-26. [S] Run the tests automatically on every push (GitHub Actions) and
+26. [S] [DONE] Run the tests automatically on every push (GitHub Actions) and
        block deploys if they fail.
-27. [M] Browser tests (Playwright) for drag-and-drop, keyboard moves,
+27. [M] [DONE] Browser tests (Playwright) for drag-and-drop, keyboard moves,
        share links and undo, so UI changes can't silently break them.
-28. [S] Linting (ESLint) with a shared config for consistent code.
-29. [S] Lighthouse audit — check load speed, accessibility and
+28. [S] [DONE] Linting (ESLint) with a shared config for consistent code.
+29. [S] [DONE] Lighthouse audit — check load speed, accessibility and
        installability scores and fix what it flags.
-30. [M] Screen-reader pass with real tools (NVDA / VoiceOver) to confirm
+30. [M] [SKIPPED] Screen-reader pass with real tools (NVDA / VoiceOver) to confirm
        the tile announcements make sense in practice.
 
 H. REACH
 --------
-31. [L] Other languages — syllable counting and rhyme are English-only;
+31. [L] [SKIPPED] Other languages — syllable counting and rhyme are English-only;
        Spanish and French are the most regular next steps.
-32. [S] A short "how it works" / about page for search engines and for
+32. [S] [DONE] A short "how it works" / about page for search engines and for
        people arriving from a shared link.

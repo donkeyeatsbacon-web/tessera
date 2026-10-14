@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About Tessera — turn any text into poetry</title>
+<meta name="description" content="Tessera breaks any text into word tiles you rearrange into poems, with live syllable counts, rhyme schemes and detection of 100+ poetic forms. Free, private, and it works offline.">
+<link rel="canonical" href="https://donkeyeatsbacon-web.github.io/tessera/about.html">
+<meta property="og:title" content="About Tessera">
+<meta property="og:description" content="Break any text into word tiles and rearrange them into poetry, with live meter, rhyme and form detection.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://donkeyeatsbacon-web.github.io/tessera/about.html">
+<meta property="og:image" content="https://donkeyeatsbacon-web.github.io/tessera/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#1a1a1a">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="tessera.css">
+<script>
+  // Same theme as the app: dark unless the visitor chose otherwise.
+  var theme = 'dark';
+  try { theme = JSON.parse(localStorage.getItem('tessera:prefs:v1') || '{}').theme || 'dark'; } catch (e) {}
+  if (theme !== 'system') document.documentElement.dataset.theme = theme;
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Tessera",
+  "url": "https://donkeyeatsbacon-web.github.io/tessera/",
+  "applicationCategory": "EducationalApplication",
+  "operatingSystem": "Any (web browser)",
+  "description": "Break any text into word tiles and rearrange them into poetry, with live syllable, rhyme and poetic form detection.",
+  "offers": { "@type": "Offer", "price": "0" }
+}
+</script>
+<style>
+  html, body { height: auto; overflow: auto; }
+  body { display: block; background: var(--bg); color: var(--text); }
+  .about { max-width: 720px; margin: 0 auto; padding: 48px 20px 64px; font: 17px/1.65 Georgia, "Times New Roman", serif; }
+  .about h1 { font: italic 56px/1.1 Georgia, serif; color: var(--accent); margin: 0; }
+  .about .tag { color: var(--text-muted); font-style: italic; margin: 6px 0 28px; }
+  .about h2 {
+    font: 700 12px -apple-system, system-ui, sans-serif; letter-spacing: 1.6px; text-transform: uppercase;
+    color: var(--accent); margin: 36px 0 10px;
+  }
+  .about p, .about li { color: var(--text-soft); }
+  .about ul { padding-left: 20px; }
+  .about li { margin: 6px 0; }
+  .about strong { color: var(--text); }
+  .tiles { display: flex; flex-wrap: wrap; gap: 6px; margin: 18px 0 8px; }
+  .tiles span {
+    background: var(--tile); color: var(--tile-ink); padding: 5px 11px; border-radius: 2px;
+    box-shadow: 0 2px 4px rgba(var(--shadow-rgb), 0.5); font-size: 18px;
+  }
+  .cta {
+    display: inline-block; margin-top: 18px; padding: 12px 22px; border-radius: 4px;
+    background: var(--accent-fill); color: var(--accent-ink); text-decoration: none;
+    font: 700 14px -apple-system, system-ui, sans-serif;
+  }
+  .cta:hover { background: var(--accent-fill-hover); }
+  .about footer { margin-top: 48px; font: 12px -apple-system, system-ui, sans-serif; color: var(--text-dim); }
+</style>
+</head>
+<body>
+<main class="about">
+  <h1>Tessera</h1>
+  <p class="tag">Every word a tile. Every poem a mosaic.</p>
+
+  <div class="tiles" aria-hidden="true">
+    <span>paste</span><span>any</span><span>text</span><span>,</span><span>rearrange</span><span>the</span><span>words</span>
+  </div>
+
+  <p>Tessera is a free tool for making <strong>found poetry</strong>. Paste anything (a sonnet, a news story, a recipe, a weather forecast) and it becomes a pile of word tiles. Drag them onto the canvas, in any order, and a new poem appears out of the old words.</p>
+  <p><a class="cta" href="./">Open Tessera</a></p>
+
+  <h2>How it works</h2>
+  <ul>
+    <li><strong>Break it up.</strong> Split your text into single words, whole lines, or random 2–4 word fragments (the cut-up technique).</li>
+    <li><strong>Compose.</strong> Drag, tap, or use the keyboard to place tiles. Add punctuation from an unlimited palette, start new lines and stanzas, lock tiles in place, or switch to free-placement "fridge magnet" mode.</li>
+    <li><strong>Listen to it.</strong> Tessera counts syllables, marks stresses, finds rhyme schemes and recognizes more than 100 poetic forms (haiku, sonnets, villanelles, limericks, ghazals, Welsh and Irish forms), live as you write. It can read your poem aloud or click out its meter.</li>
+    <li><strong>Aim for a form.</strong> Choose a haiku, limerick or sonnet and get a line-by-line checklist, with the words in your bank that rhyme or fit highlighted.</li>
+    <li><strong>Play.</strong> Try a blackout poem, a daily prompt, an Oulipo N+7 swap, or a constraint like a lipogram or a six-word story.</li>
+    <li><strong>Keep and share.</strong> Save poems to your Library, share a link (the poem travels inside the link), export a picture or Markdown, or print.</li>
+  </ul>
+
+  <h2>Private by design</h2>
+  <p>There are no accounts and no server. Your poems are saved only in your own browser. The only network requests are the app files themselves, the optional public-domain poem search (PoetryDB), and the optional handwritten and typewriter fonts (Google Fonts). Once loaded, Tessera works offline and can be installed like an app.</p>
+
+  <h2>Credits</h2>
+  <p>Pronunciations come from the <a href="https://github.com/cmusphinx/cmudict">CMU Pronouncing Dictionary</a> (BSD license). Poem search is powered by <a href="https://poetrydb.org">PoetryDB</a>. Sample texts are in the public domain.</p>
+
+  <footer>Tessera · <a href="./">Open the app</a></footer>
+</main>
+</body>
+</html>

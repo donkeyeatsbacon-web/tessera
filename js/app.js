@@ -306,12 +306,7 @@
     const words = [];
     const midCapSet = new Set();
 
-    let tokenRe;
-    try {
-      tokenRe = /([\p{L}\p{N}][\p{L}\p{N}'\u2019\-]*)|([.!?\u2026]+)/gu;
-    } catch (e) {
-      tokenRe = /([A-Za-z0-9][A-Za-z0-9'\u2019\-]*)|([.!?\u2026]+)/g;
-    }
+    const tokenRe = /([\p{L}\p{N}][\p{L}\p{N}'\u2019-]*)|([.!?\u2026]+)/gu;
 
     let m;
     let isStart = true;
@@ -832,7 +827,7 @@
   // ---------- BREAK CLEANUP ----------
   function cleanupBreaks() {
     const canvas = $('canvas');
-    let children = Array.from(canvas.children).filter(
+    const children = Array.from(canvas.children).filter(
       (c) => c.classList && !c.classList.contains('drop-indicator')
     );
 
@@ -1154,10 +1149,7 @@
     const brackets = Array.from(canvas.querySelectorAll('.meter-bracket'));
     if (brackets.length === 0) return;
 
-    const wordRe = (function () {
-      try { return /[\p{L}\p{N}][\p{L}\p{N}'\u2019\-]*/gu; }
-      catch (e) { return /[A-Za-z0-9][A-Za-z0-9'\u2019\-]*/g; }
-    })();
+    const wordRe = /[\p{L}\p{N}][\p{L}\p{N}'\u2019-]*/gu;
 
     const children = Array.from(canvas.children);
     let currentBracket = null;
@@ -1571,7 +1563,7 @@
   }
 
   function restoreState() {
-    let saved = null;
+    let saved;
     try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) { return false; }
     if (!saved) return false;
     const hasBank = saved.bank && saved.bank.length > 0;
@@ -1713,8 +1705,8 @@
   function loadPronunciationData() {
     fetch('data/pronunciations.txt')
       .then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.status))))
-      .then((data) => {
-        window.TesseraAnalysis.loadPronunciations(data);
+      .then((data) => window.TesseraAnalysis.loadPronunciationsAsync(data))
+      .then(() => {
         if ($('input').value.trim()) refreshSourceAnalysis();
         updateMeterCounts();
         updateCanvasStatus();
@@ -2709,9 +2701,7 @@
       m.textContent = s;
       return m;
     };
-    let wordRe;
-    try { wordRe = /[\p{L}\p{N}][\p{L}\p{N}'’\-]*/gu; }
-    catch (e) { wordRe = /[A-Za-z0-9][A-Za-z0-9'’\-]*/g; }
+    const wordRe = /[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu;
 
     const frag = document.createDocumentFragment();
     for (const part of text.split(/(\n)/)) {
@@ -3621,7 +3611,7 @@
     if (fmt === 'markdown') {
       const title = $('imgTitle').value.trim();
       const body = plain
-        .replace(/([\\`*_#>\[\]])/g, '\\$1')
+        .replace(/([\\`*_#>[\]])/g, '\\$1')
         .replace(/([^\n])\n(?!\n)/g, '$1  \n'); // single newlines become hard breaks
       return (title ? '## ' + title + '\n\n' : '') + body;
     }
@@ -3849,7 +3839,7 @@
     return (h >>> 0).toString(36);
   }
 
-  const BLACKOUT_WORD = /([\p{L}\p{N}][\p{L}\p{N}'’\-]*)/u;
+  const BLACKOUT_WORD = /([\p{L}\p{N}][\p{L}\p{N}'’-]*)/u;
 
   function blackoutParts(text) {
     const struck = new Set(blackout.struck);
@@ -3919,7 +3909,7 @@
       if (!w) return;
       const words = Array.from(page.querySelectorAll('.bo-word'));
       const i = words.indexOf(w);
-      let next = null;
+      let next;
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = words[i + 1];
       else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = words[i - 1];
       else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setStruck(w, !w.classList.contains('struck')); syncBlackout(); return; }
@@ -4439,6 +4429,9 @@
   initBlackout();
   scheduleDerived();
   checkSharedLink().then((shown) => { if (!shown) maybeShowIntro(); });
-  setTimeout(loadPronunciationData, 300);
+  // Fetch the dictionary once the page has settled, so it never competes
+  // with the first paint on a slow connection.
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 200));
+  window.addEventListener('load', () => setTimeout(() => idle(loadPronunciationData, { timeout: 3000 }), 2000));
   registerServiceWorker();
 })();

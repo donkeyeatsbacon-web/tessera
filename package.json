@@ -3,6 +3,15 @@
   "private": true,
   "description": "Tessera — word rearranger and poetry composer (static site, no build step)",
   "scripts": {
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "test:e2e": "playwright test",
+    "lint": "eslint .",
+    "test:all": "npm run lint && npm test && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.0",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0"
   }
 }

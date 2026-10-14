@@ -2,10 +2,11 @@
 // App files are served from cache and refreshed in the background
 // (stale-while-revalidate), so a deploy shows up on the next visit.
 // Bump CACHE when the list of core files changes.
-const CACHE = 'tessera-v2';
+const CACHE = 'tessera-v3';
 const CORE = [
   './',
   'index.html',
+  'about.html',
   'tessera.css',
   'js/analysis.js',
   'js/samples.js',
