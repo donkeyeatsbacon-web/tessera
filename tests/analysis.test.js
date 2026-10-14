@@ -17,8 +17,8 @@ test('works before the pronunciation dictionary loads', () => {
   assert.deepEqual(baseline, { loaded: false, beautiful: 3, catHat: true });
 });
 
-A.loadPronunciations(JSON.parse(
-  fs.readFileSync(path.join(__dirname, '..', 'data', 'pronunciations.json'), 'utf8')));
+A.loadPronunciations(
+  fs.readFileSync(path.join(__dirname, '..', 'data', 'pronunciations.txt'), 'utf8'));
 
 const POEMS = {
   haiku: [
@@ -96,11 +96,11 @@ test('limerick is detected with AABBA', () => {
   assert.equal(m.pattern.name, 'limerick');
 });
 
-test('Sonnet 18 is recognized as a sonnet', () => {
+test('Sonnet 18 is a Shakespearean sonnet despite one dated rhyme', () => {
   const m = analyze('sonnet18');
   assert.equal(m.lineCount, 14);
   assert.ok(m.lineMeters.every((l) => Math.abs(l.syllables - 10) <= 1));
-  assert.match(m.pattern.name, /sonnet/);
+  assert.equal(m.pattern.name, 'sonnet-shakespearean');
 });
 
 // Relabel a scheme so its first letter is A, next new letter B, and so on.
@@ -135,4 +135,29 @@ test('every form has a description', () => {
     .map((f) => f.name)
     .filter((n) => !n.startsWith('__') && !A.PATTERN_DESCRIPTIONS[n]);
   assert.deepEqual(missing, []);
+});
+
+test('rhyme quality distinguishes perfect, slant and none', () => {
+  assert.equal(A.rhymeQuality('day', 'May'), 'perfect');
+  assert.equal(A.rhymeQuality('spears', 'tears'), 'perfect'); // alternate pronunciation
+  assert.equal(A.rhymeQuality('aspire', 'fire'), 'perfect');
+  assert.equal(A.rhymeQuality('love', 'move'), 'slant');
+  assert.equal(A.rhymeQuality('cat', 'dog'), 'none');
+});
+
+test('inflections and elisions derive from their stems', () => {
+  assert.equal(A.countSyllables('walked'), 1);
+  assert.equal(A.countSyllables('boxes'), 2);
+  assert.equal(A.countSyllables("grow'st"), 1);
+  assert.ok(A.rhymesWith("ow'st", "grow'st"));
+  assert.ok(A.rhymesWith("dimm'd", "untrimm'd"));
+});
+
+test('a two-line rhyme is named a couplet', () => {
+  assert.equal(A.nameRhymeScheme('AA'), 'rhymed couplet');
+});
+
+test('scheme matching tolerates renamed letters and counts misses', () => {
+  assert.equal(A.schemeMisses('CDCD', 'ABAB'), 0);
+  assert.equal(A.schemeMisses('ABAC', 'ABAB'), 1);
 });

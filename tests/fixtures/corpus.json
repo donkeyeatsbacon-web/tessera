@@ -1,0 +1,541 @@
+[
+ {
+  "title": "Sonnet 18: Shall I compare thee to a summer's day?",
+  "author": "William Shakespeare",
+  "expect": "^sonnet-shakespearean$",
+  "lines": [
+   "Shall I compare thee to a summer's day?",
+   "Thou art more lovely and more temperate:",
+   "Rough winds do shake the darling buds of May,",
+   "And summer's lease hath all too short a date:",
+   "Sometime too hot the eye of heaven shines,",
+   "And often is his gold complexion dimm'd,",
+   "And every fair from fair sometime declines,",
+   "By chance, or nature's changing course untrimm'd:",
+   "But thy eternal summer shall not fade,",
+   "Nor lose possession of that fair thou ow'st,",
+   "Nor shall death brag thou wander'st in his shade,",
+   "When in eternal lines to time thou grow'st,",
+   "  So long as men can breathe, or eyes can see,",
+   "  So long lives this, and this gives life to thee."
+  ]
+ },
+ {
+  "title": "Sonnet 29: When in disgrace with fortune and men's eyes",
+  "author": "William Shakespeare",
+  "expect": "^sonnet",
+  "lines": [
+   "When in disgrace with fortune and men's eyes",
+   "I all alone beweep my outcast state,",
+   "And trouble deaf heaven with my bootless cries,",
+   "And look upon myself, and curse my fate,",
+   "Wishing me like to one more rich in hope,",
+   "Featur'd like him, like him with friends possess'd,",
+   "Desiring this man's art, and that man's scope,",
+   "With what I most enjoy contented least;",
+   "Yet in these thoughts my self almost despising,",
+   "Haply I think on thee,-- and then my state,",
+   "Like to the lark at break of day arising",
+   "From sullen earth, sings hymns at heaven's gate;",
+   "  For thy sweet love remember'd such wealth brings",
+   "  That then I scorn to change my state with kings."
+  ]
+ },
+ {
+  "title": "Sonnet 73: That time of year thou mayst in me behold",
+  "author": "William Shakespeare",
+  "expect": "^sonnet",
+  "lines": [
+   "That time of year thou mayst in me behold",
+   "When yellow leaves, or none, or few, do hang",
+   "Upon those boughs which shake against the cold,",
+   "Bare ruin'd choirs, where late the sweet birds sang.",
+   "In me thou see'st the twilight of such day",
+   "As after sunset fadeth in the west;",
+   "Which by and by black night doth take away,",
+   "Death's second self, that seals up all in rest.",
+   "In me thou see'st the glowing of such fire,",
+   "That on the ashes of his youth doth lie,",
+   "As the death-bed, whereon it must expire,",
+   "Consum'd with that which it was nourish'd by.",
+   "  This thou perceiv'st, which makes thy love more strong,",
+   "  To love that well, which thou must leave ere long."
+  ]
+ },
+ {
+  "title": "Sonnet 116: Let me not to the marriage of true minds",
+  "author": "William Shakespeare",
+  "expect": "^sonnet",
+  "lines": [
+   "Let me not to the marriage of true minds",
+   "Admit impediments. Love is not love",
+   "Which alters when it alteration finds,",
+   "Or bends with the remover to remove:",
+   "O, no! it is an ever-fixed mark,",
+   "That looks on tempests and is never shaken;",
+   "It is the star to every wandering bark,",
+   "Whose worth's unknown, although his height be taken.",
+   "Love's not Time's fool, though rosy lips and cheeks",
+   "Within his bending sickle's compass come;",
+   "Love alters not with his brief hours and weeks,",
+   "But bears it out even to the edge of doom.",
+   "  If this be error and upon me prov'd,",
+   "  I never writ, nor no man ever lov'd."
+  ]
+ },
+ {
+  "title": "Sonnet 130: My mistress' eyes are nothing like the sun",
+  "author": "William Shakespeare",
+  "expect": "^sonnet",
+  "lines": [
+   "My mistress' eyes are nothing like the sun;",
+   "Coral is far more red, than her lips red:",
+   "If snow be white, why then her breasts are dun;",
+   "If hairs be wires, black wires grow on her head.",
+   "I have seen roses damask'd, red and white,",
+   "But no such roses see I in her cheeks;",
+   "And in some perfumes is there more delight",
+   "Than in the breath that from my mistress reeks.",
+   "I love to hear her speak, yet well I know",
+   "That music hath a far more pleasing sound:",
+   "I grant I never saw a goddess go,--",
+   "My mistress, when she walks, treads on the ground:",
+   "  And yet by heaven, I think my love as rare,",
+   "  As any she belied with false compare."
+  ]
+ },
+ {
+  "title": "On First Looking into Chapman's Homer",
+  "author": "John Keats",
+  "expect": "^sonnet",
+  "lines": [
+   "Much have I travell'd in the realms of gold,",
+   "    And many goodly states and kingdoms seen;",
+   "    Round many western islands have I been",
+   "Which bards in fealty to Apollo hold.",
+   "Oft of one wide expanse had I been told",
+   "    That deep-brow'd Homer ruled as his demesne;",
+   "    Yet did I never breathe its pure serene",
+   "Till I heard Chapman speak out loud and bold:",
+   "Then felt I like some watcher of the skies",
+   "    When a new planet swims into his ken;",
+   "Or like stout Cortez when with eagle eyes",
+   "    He star'd at the Pacific--and all his men",
+   "Look'd at each other with a wild surmise--",
+   "    Silent, upon a peak in Darien."
+  ]
+ },
+ {
+  "title": "Bright Star, Would I Were Steadfast As Thou Art",
+  "author": "John Keats",
+  "expect": "^sonnet",
+  "lines": [
+   "Bright star, would I were steadfast as thou art—",
+   "    Not in lone splendour hung aloft the night",
+   "And watching, with eternal lids apart,",
+   "    Like nature's patient, sleepless Eremite,",
+   "The moving waters at their priestlike task",
+   "    Of pure ablution round earth's human shores,",
+   "Or gazing on the new soft-fallen mask",
+   "    Of snow upon the mountains and the moors—",
+   "No—yet still steadfast, still unchangeable,",
+   "    Pillow'd upon my fair love's ripening breast,",
+   "To feel for ever its soft fall and swell,",
+   "    Awake for ever in a sweet unrest,",
+   "Still, still to hear her tender-taken breath,",
+   "And so live ever—or else swoon to death."
+  ]
+ },
+ {
+  "title": "Ozymandias",
+  "author": "Percy Bysshe Shelley",
+  "expect": "^sonnet",
+  "lines": [
+   "I met a traveller from an antique land",
+   "Who said: Two vast and trunkless legs of stone",
+   "Stand in the desert...Near them, on the sand,",
+   "Half sunk, a shattered visage lies, whose frown,",
+   "And wrinkled lip, and sneer of cold command,",
+   "Tell that its sculptor well those passions read",
+   "Which yet survive, stamped on these lifeless things,",
+   "The hand that mocked them, and the heart that fed:",
+   "And on the pedestal these words appear:",
+   "'My name is Ozymandias, king of kings:",
+   "Look on my works, ye Mighty, and despair!'",
+   "Nothing beside remains. Round the decay",
+   "Of that colossal wreck, boundless and bare",
+   "The lone and level sands stretch far away."
+  ]
+ },
+ {
+  "title": "Holy Sonnet X: Death Be Not Proud",
+  "author": "John Donne",
+  "expect": "^sonnet",
+  "lines": [
+   "Death, be not proud, though some have callèd thee",
+   "Mighty and dreadful, for thou art not so;",
+   "For those whom thou think'st thou dost overthrow",
+   "Die not, poor death, nor yet canst thou kill me.",
+   "From rest and sleep, which yet thy pictures be,",
+   "Much pleasure, then from thee much more, must low",
+   "And soonest our best men with thee do go,",
+   "Rest of their bones and soul's delivery.",
+   "Thou art slave to fate, chance, kings and desperate men",
+   "And dost with poison, war and sickness dwell,",
+   "And poppy or charms can make us sleep as well",
+   "And better than thy stroke; why swell'st thou then ?",
+   "One short sleep past, we wake eternally,",
+   "And death shall be no more; death, thou shalt die."
+  ]
+ },
+ {
+  "title": "Because I could not stop for Death",
+  "author": "Emily Dickinson",
+  "expect": "common-meter|ballad|iambic|meter",
+  "lines": [
+   "Because I could not stop for Death,",
+   "He kindly stopped for me;",
+   "The carriage held but just ourselves",
+   "And Immortality.",
+   "",
+   "We slowly drove, he knew no haste,",
+   "And I had put away",
+   "My labor, and my leisure too,",
+   "For his civility.",
+   "",
+   "We passed the school where children played,",
+   "Their lessons scarcely done;",
+   "We passed the fields of gazing grain,",
+   "We passed the setting sun.",
+   "",
+   "We paused before a house that seemed",
+   "A swelling of the ground;",
+   "The roof was scarcely visible,",
+   "The cornice but a mound.",
+   "",
+   "Since then 't is centuries; but each",
+   "Feels shorter than the day",
+   "I first surmised the horses' heads",
+   "Were toward eternity."
+  ]
+ },
+ {
+  "title": "Hope is the thing with feathers",
+  "author": "Emily Dickinson",
+  "expect": "common-meter|ballad|iambic|meter",
+  "lines": [
+   "Hope is the thing with feathers",
+   "That perches in the soul,",
+   "And sings the tune without the words,",
+   "And never stops at all,",
+   "",
+   "And sweetest in the gale is heard;",
+   "And sore must be the storm",
+   "That could abash the little bird",
+   "That kept so many warm.",
+   "",
+   "I 've heard it in the chillest land,",
+   "And on the strangest sea;",
+   "Yet, never, in extremity,",
+   "It asked a crumb of me."
+  ]
+ },
+ {
+  "title": "A Red, Red Rose",
+  "author": "Robert Burns",
+  "expect": "common-meter|ballad|iambic|meter",
+  "lines": [
+   "O my Luve's like a red, red rose",
+   "That's newly sprung in June;",
+   "O my Luve's like the melodie",
+   "That's sweetly played in tune.",
+   "",
+   "As fair art thou, my bonnie lass,",
+   "So deep in luve am I;",
+   "And I will luve thee still, my dear,",
+   "Till a' the seas gang dry:",
+   "",
+   "Till a' the seas gang dry, my dear,",
+   "And the rocks melt wi' the sun;",
+   "I will luve thee still, my dear,",
+   "While the sands o' life shall run.",
+   "",
+   "And fare thee weel, my only Luve,",
+   "And fare thee weel awhile!",
+   "And I will come again, my Luve,",
+   "Tho' it ware ten thousand mile."
+  ]
+ },
+ {
+  "title": "The Tyger",
+  "author": "William Blake",
+  "expect": "couplet|trochaic",
+  "lines": [
+   "Tyger, tyger, burning bright",
+   "In the forests of the night,",
+   "What immortal hand or eye",
+   "Could frame thy fearful symmetry?",
+   "",
+   "In what distant deeps or skies",
+   "Burnt the fire of thine eyes?",
+   "On what wings dare he aspire?",
+   "What the hand dare seize the fire?",
+   "",
+   "And what shoulder and what art",
+   "Could twist the sinews of thy heart?",
+   "And, when thy heart began to beat,",
+   "What dread hand and what dread feet?",
+   "",
+   "What the hammer?  what the chain?",
+   "In what furnace was thy brain?",
+   "What the anvil? what dread grasp",
+   "Dare its deadly terrors clasp?",
+   "",
+   "When the stars threw down their spears,",
+   "And watered heaven with their tears,",
+   "Did he smile his work to see?",
+   "Did he who made the lamb make thee?",
+   "",
+   "Tyger, tyger, burning bright",
+   "In the forests of the night,",
+   "What immortal hand or eye",
+   "Dare frame thy fearful symmetry?"
+  ]
+ },
+ {
+  "title": "London",
+  "author": "William Blake",
+  "expect": "iambic|alternating|quatrain|tetrameter",
+  "lines": [
+   "I wandered through each chartered street,",
+   "  Near where the chartered Thames does flow,",
+   "A mark in every face I meet,",
+   "  Marks of weakness, marks of woe.",
+   "",
+   "In every cry of every man,",
+   "  In every infant's cry of fear,",
+   "In every voice, in every ban,",
+   "  The mind-forged manacles I hear:",
+   "",
+   "How the chimney-sweeper's cry",
+   "  Every blackening church appalls,",
+   "And the hapless soldier's sigh",
+   "  Runs in blood down palace-walls.",
+   "",
+   "But most, through midnight streets I hear",
+   "  How the youthful harlot's curse",
+   "Blasts the new-born infant's tear,",
+   "  And blights with plagues the marriage-hearse."
+  ]
+ },
+ {
+  "title": "There Was an Old Man in a Tree",
+  "author": "Edward Lear",
+  "expect": "^limerick$",
+  "lines": [
+   "There was an Old Man in a tree,",
+   "Who was horribly bored by a bee.",
+   "When they said \"Does it buzz?\"",
+   "He replied \"Yes, it does!",
+   "It's a regular brute of a bee!\""
+  ]
+ },
+ {
+  "title": "Whispers of Heavenly Death",
+  "author": "Walt Whitman",
+  "expect": "^free verse$",
+  "lines": [
+   "WHISPERS of heavenly death, murmur’d I hear;",
+   "Labial gossip of night—sibilant chorals;",
+   "Footsteps gently ascending—mystical breezes, wafted soft and low;",
+   "Ripples of unseen rivers—tides of a current, flowing, forever flowing;",
+   "(Or is it the plashing of tears? the measureless waters of human tears?)",
+   "",
+   "I see, just see, skyward, great cloud-masses;",
+   "Mournfully, slowly they roll, silently swelling and mixing;",
+   "With, at times, a half-dimm’d, sadden’d, far-off star,",
+   "Appearing and disappearing.",
+   "",
+   "(Some parturition, rather—some solemn, immortal birth:",
+   "On the frontiers, to eyes impenetrable,",
+   "Some Soul is passing over.)"
+  ]
+ },
+ {
+  "title": "I Dream’d in a Dream",
+  "author": "Walt Whitman",
+  "expect": "^free verse$",
+  "lines": [
+   "I DREAM’D in a dream, I saw a city invincible to the attacks of the whole of the rest of",
+   "    the",
+   "  earth;",
+   "",
+   "I dream’d that was the new City of Friends;",
+   "Nothing was greater there than the quality of robust love—it led the rest;",
+   "It was seen every hour in the actions of the men of that city,",
+   "And in all their looks and words.         5"
+  ]
+ },
+ {
+  "title": "Full of Life, Now",
+  "author": "Walt Whitman",
+  "expect": "^free verse$",
+  "lines": [
+   "FULL of life, now, compact, visible,",
+   "I, forty years old the Eighty-third Year of The States,",
+   "To one a century hence, or any number of centuries hence,",
+   "To you, yet unborn, these, seeking you.",
+   "",
+   "When you read these, I, that was visible, am become invisible;",
+   "Now it is you, compact, visible, realizing my poems, seeking me;",
+   "Fancying how happy you were, if I could be with you, and become your comrade;",
+   "Be it as if I were with you. (Be not too certain but I am now with you.)"
+  ]
+ },
+ {
+  "title": "Native Moments",
+  "author": "Walt Whitman",
+  "expect": "^free verse$",
+  "lines": [
+   "NATIVE moments! when you come upon me—Ah you are here now!",
+   "Give me now libidinous joys only!",
+   "Give me the drench of my passions! Give me life coarse and rank!",
+   "To-day, I go consort with nature’s darlings—to-night too;",
+   "I am for those who believe in loose delights—I share the midnight orgies of young men;",
+   "I dance with the dancers, and drink with the drinkers;",
+   "The echoes ring with our indecent calls;",
+   "I take for my love some prostitute—I pick out some low person for my dearest friend,",
+   "He shall be lawless, rude, illiterate—he shall be one condemn’d by others for deeds",
+   "  done;",
+   "I will play a part no longer—Why should I exile myself from my companions?",
+   "O you shunn’d persons! I at least do not shun you,",
+   "I come forthwith in your midst—I will be your poet,",
+   "I will be more to you than to any of the rest."
+  ]
+ },
+ {
+  "title": "That Music Always Round Me",
+  "author": "Walt Whitman",
+  "expect": "^free verse$",
+  "lines": [
+   "THAT music always round me, unceasing, unbeginning—yet long untaught I did not hear;",
+   "But now the chorus I hear, and am elated;",
+   "A tenor, strong, ascending, with power and health, with glad notes of day-break I hear,",
+   "A soprano, at intervals, sailing buoyantly over the tops of immense waves,",
+   "A transparent bass, shuddering lusciously under and through the universe,",
+   "The triumphant tutti—the funeral wailings, with sweet flutes and violins—all",
+   "    these I",
+   "  fill myself with;",
+   "I hear not the volumes of sound merely—I am moved by the exquisite meanings,",
+   "I listen to the different voices winding in and out, striving, contending with fiery",
+   "    vehemence",
+   "  to excel each other in emotion;",
+   "I do not think the performers know themselves—but now I think I begin to know them."
+  ]
+ },
+ {
+  "title": "I'm nobody!  Who are you?",
+  "author": "Emily Dickinson",
+  "expect": "common-meter|ballad|iambic|meter",
+  "lines": [
+   "I'm nobody!  Who are you?",
+   "Are you nobody, too?",
+   "Then there 's a pair of us -- don't tell!",
+   "They 'd banish us, you know.",
+   "",
+   "How dreary to be somebody!",
+   "How public, like a frog",
+   "To tell your name the livelong day",
+   "To an admiring bog!"
+  ]
+ },
+ {
+  "title": "The heart asks pleasure first",
+  "author": "Emily Dickinson",
+  "expect": "common-meter|ballad|iambic|meter",
+  "lines": [
+   "The heart asks pleasure first,",
+   "And then, excuse from pain;",
+   "And then, those little anodynes",
+   "That deaden suffering;",
+   "",
+   "And then, to go to sleep;",
+   "And then, if it should be",
+   "The will of its Inquisitor,",
+   "The liberty to die."
+  ]
+ },
+ {
+  "title": "I had no time to hate, because",
+  "author": "Emily Dickinson",
+  "expect": "common-meter|ballad|iambic|meter",
+  "lines": [
+   "I had no time to hate, because",
+   "The grave would hinder me,",
+   "And life was not so ample I",
+   "Could finish enmity.",
+   "",
+   "Nor had I time to love; but since",
+   "Some industry must be,",
+   "The little toil of love, I thought,",
+   "Was large enough for me."
+  ]
+ },
+ {
+  "title": "He ate and drank the precious words",
+  "author": "Emily Dickinson",
+  "expect": "common-meter|ballad|iambic|meter",
+  "lines": [
+   "He ate and drank the precious words,",
+   "His spirit grew robust;",
+   "He knew no more that he was poor,",
+   "Nor that his frame was dust.",
+   "He danced along the dingy days,",
+   "And this bequest of wings",
+   "Was but a book. What liberty",
+   "A loosened spirit brings!"
+  ]
+ },
+ {
+  "title": "From Sunset to Star Rise",
+  "author": "Christina Rossetti",
+  "expect": "^sonnet",
+  "lines": [
+   "Go from me, summer friends, and tarry not:",
+   "I am no summer friend, but wintry cold,",
+   "A silly sheep benighted from the fold,",
+   "A sluggard with a thorn-choked garden plot.",
+   "Take counsel, sever from my lot your lot,",
+   "Dwell in your pleasant places, hoard your gold;",
+   "Lest you with me should shiver on the wold,",
+   "Athirst and hungering on a barren spot.",
+   "For I have hedged me with a thorny hedge,",
+   "I live alone, I look to die alone:",
+   "Yet sometimes, when a wind sighs through the sedge,",
+   "Ghosts of my buried years, and friends come back,",
+   "My heart goes sighing after swallows flown",
+   "On sometime summer's unreturning track."
+  ]
+ },
+ {
+  "title": "Holy Sonnet IV: Oh My Black Soul! Now Art Thou Summoned",
+  "author": "John Donne",
+  "expect": "^sonnet",
+  "lines": [
+   "Oh my black soul! now art thou summoned",
+   "By sickness, death's herald, and champion;",
+   "Thou art like a pilgrim, which abroad hath done",
+   "Treason, and durst not turn to whence he is fled;",
+   "Or like a thief, which till death's doom be read,",
+   "Wisheth himself delivered from prison,",
+   "But damned and haled to execution,",
+   "Wisheth that still he might be imprisoned.",
+   "Yet grace, if thou repent, thou canst not lack;",
+   "But who shall give thee that grace to begin?",
+   "Oh make thy self with holy mourning black,",
+   "And red with blushing, as thou art with sin;",
+   "Or wash thee in Christ's blood, which hath this might",
+   "That being red, it dyes red souls to white"
+  ]
+ }
+]

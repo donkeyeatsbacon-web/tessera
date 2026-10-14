@@ -1591,11 +1591,11 @@
   }
 
   // ---------- PRONUNCIATION DICTIONARY ----------
-  // The full CMU-derived dictionary (~1 MB gzipped) loads after the page is
+  // The CMU-derived dictionary (~650 KB gzipped) loads after the page is
   // usable; until then analysis runs on the built-in word list + heuristics.
   function loadPronunciationData() {
-    fetch('data/pronunciations.json')
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
+    fetch('data/pronunciations.txt')
+      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.status))))
       .then((data) => {
         window.TesseraAnalysis.loadPronunciations(data);
         if ($('input').value.trim()) refreshSourceAnalysis();
@@ -2515,9 +2515,11 @@
     const tiles = $('canvas').querySelectorAll('.word-tile');
     for (const t of tiles) {
       let scan = '';
-      if (prefs.scansion && t.dataset.kind === 'word') {
-        scan = window.TesseraAnalysis.getWordStress(t.dataset.word)
-          .split('').map((d) => STRESS_MARKS[d] || '').join(' ');
+      if (prefs.scansion && (t.dataset.kind === 'word' || t.dataset.kind === 'line')) {
+        const stress = t.dataset.kind === 'word'
+          ? window.TesseraAnalysis.getWordStress(t.dataset.word)
+          : window.TesseraAnalysis.getLineStress(t.dataset.word);
+        scan = stress.split('').map((d) => STRESS_MARKS[d] || '').join(' ');
       }
       if (scan) { if (t.dataset.scan !== scan) t.dataset.scan = scan; }
       else if (t.hasAttribute('data-scan')) t.removeAttribute('data-scan');
@@ -2672,18 +2674,21 @@
     if (prefs.hint === 'rhyme') {
       const target = rhymeTargetWord();
       if (!target) { note.textContent = 'Put a line on the canvas (or select a word) to see its rhymes.'; return; }
-      const key = A.getRhymeKey(target);
-      let n = 0;
+      let n = 0, near = 0;
+      const cache = new Map();
       for (const t of bankTiles) {
         const w = t.dataset.kind === 'line' ? A.getLastWord(t.dataset.word) : t.dataset.word;
-        if (w && w.toLowerCase() !== target.toLowerCase() && A.getRhymeKey(w) === key) {
-          t.classList.add('hint-match');
-          n++;
-        }
+        if (!w) continue;
+        const lw = w.toLowerCase();
+        if (!cache.has(lw)) cache.set(lw, A.rhymeQuality(w, target));
+        const q = cache.get(lw);
+        if (q === 'perfect') { t.classList.add('hint-match'); n++; }
+        else if (q === 'slant') { t.classList.add('hint-near'); near++; }
       }
-      note.textContent = n
+      note.textContent = (n
         ? n + (n === 1 ? ' word rhymes' : ' words rhyme') + ' with “' + target + '”'
-        : 'Nothing in the bank rhymes with “' + target + '”';
+        : 'Nothing in the bank rhymes with “' + target + '”') +
+        (near ? ' · ' + near + ' near rhyme' + (near === 1 ? '' : 's') + ' (outlined)' : '');
     } else {
       const slot = openLineSlot();
       if (!slot) {
@@ -2728,12 +2733,12 @@
         word: lines[i] ? lastWordOfLine(lines[i]) : '' });
     }
     // Rhyme check: every line in a letter group must rhyme with the group's first word.
-    const firstKey = {};
+    const firstWord = {};
     for (const r of rows) {
       if (!/^[A-Z]$/.test(r.letter) || !r.word) continue;
-      const key = A.getRhymeKey(r.word);
-      if (!(r.letter in firstKey)) { firstKey[r.letter] = key; r.rhyme = 'first'; }
-      else r.rhyme = key === firstKey[r.letter] ? 'ok' : 'bad';
+      if (!(r.letter in firstWord)) { firstWord[r.letter] = r.word; r.rhyme = 'first'; continue; }
+      const q = A.rhymeQuality(r.word, firstWord[r.letter]);
+      r.rhyme = q === 'perfect' ? 'ok' : q === 'slant' || q === 'eye' ? 'near' : 'bad';
     }
     const linesOk = rows.every((r) => r.status === 'ok');
     const rhymesOk = rows.every((r) => r.rhyme !== 'bad');
@@ -2778,8 +2783,10 @@
       if (/^[A-Z]$/.test(r.letter)) {
         const rh = document.createElement('span');
         rh.className = 'row-rhyme rhyme-' + (r.rhyme || 'none');
-        rh.textContent = r.letter + (r.rhyme === 'ok' ? ' ✓' : r.rhyme === 'bad' ? ' ✗' : '');
-        rh.title = r.rhyme === 'bad' ? '“' + r.word + '” doesn’t rhyme with the other ' + r.letter + ' lines' : 'Rhyme group ' + r.letter;
+        rh.textContent = r.letter + (r.rhyme === 'ok' ? ' ✓' : r.rhyme === 'bad' ? ' ✗' : r.rhyme === 'near' ? ' ~' : '');
+        rh.title = r.rhyme === 'bad' ? '“' + r.word + '” doesn’t rhyme with the other ' + r.letter + ' lines'
+          : r.rhyme === 'near' ? '“' + r.word + '” is a near rhyme with the other ' + r.letter + ' lines'
+          : 'Rhyme group ' + r.letter;
         li.appendChild(rh);
       }
       list.appendChild(li);

@@ -136,20 +136,36 @@
 
   // -----------------------------------------------------------------
   // FULL PRONUNCIATION DICTIONARY (optional, loaded at runtime)
-  // data/pronunciations.json is built from the CMU Pronouncing Dictionary
-  // by tools/build-pronunciations.py. Until it arrives, everything falls
-  // back to STRESS_DICT plus spelling heuristics.
+  // data/pronunciations.txt is built from the CMU Pronouncing Dictionary by
+  // tools/build-pronunciations.js, which leaves out every word these rules
+  // already get right (inflections of known words, unambiguous spellings).
+  // Until it arrives, everything falls back to STRESS_DICT plus heuristics.
   // -----------------------------------------------------------------
   let PRON_STRESS = null; // word -> '010'
-  let PRON_RHYME = null;  // word -> phonemes from the last stressed vowel on
+  let PRON_RHYME = null;  // word -> ['AY R', ...] phonemes from the last stressed vowel on
 
+  // Parse the compact text format: a JSON header line with the stress and
+  // rhyme-tail tables, then one "prefixLen word,stressIdx,tailIdx.tailIdx"
+  // line per word (front-coded against the previous word, base 36 numbers).
   function loadPronunciations(data) {
+    if (typeof data !== 'string') return 0;
+    const nl = data.indexOf('\n');
+    const head = JSON.parse(data.slice(0, nl));
     const stress = new Map(), rhyme = new Map();
-    for (const pattern of Object.keys(data.s || {})) {
-      for (const w of data.s[pattern].split(' ')) stress.set(w, pattern);
-    }
-    for (const tail of Object.keys(data.r || {})) {
-      for (const w of data.r[tail].split(' ')) rhyme.set(w, tail);
+    let prev = '';
+    let i = nl + 1;
+    while (i < data.length) {
+      let j = data.indexOf('\n', i);
+      if (j === -1) j = data.length;
+      const line = data.slice(i, j);
+      i = j + 1;
+      if (!line) continue;
+      const parts = line.split(',');
+      const keep = parseInt(parts[0][0], 36);
+      const word = prev.slice(0, keep) + parts[0].slice(1);
+      prev = word;
+      stress.set(word, head.stress[parseInt(parts[1], 36)]);
+      rhyme.set(word, parts[2].split('.').map((t) => head.tails[parseInt(t, 36)]));
     }
     PRON_STRESS = stress;
     PRON_RHYME = rhyme;
@@ -160,15 +176,20 @@
     return PRON_STRESS !== null;
   }
 
+  // For the build tool: run the rules against an arbitrary word list.
+  function setPronunciationMaps(stress, rhyme) {
+    PRON_STRESS = stress;
+    PRON_RHYME = rhyme;
+  }
+
   // Spellings to try for a word, most literal first: archaic elisions like
   // dimm'd / wander'st / summer's map onto their modern dictionary forms.
   function pronVariants(raw) {
-    const w = String(raw).toLowerCase().replace(/\u2019/g, "'")
+    const w = String(raw).toLowerCase().replace(/’/g, "'")
       .replace(/[^a-z']/g, '').replace(/^'+|'+$/g, '');
     if (!w) return [];
     const out = [w];
     if (/'d$/.test(w)) out.push(w.slice(0, -2) + 'ed');
-    if (/'st$/.test(w)) out.push(w.slice(0, -3) + 'est');
     if (/'(s|ll|re|ve|m)$/.test(w)) out.push(w.replace(/'(s|ll|re|ve|m)$/, ''));
     if (w.indexOf("'") !== -1) out.push(w.replace(/'/g, ''));
     return out;
@@ -176,8 +197,82 @@
 
   function lookupPron(map, raw) {
     if (!map) return null;
+    let found = null;
     for (const v of pronVariants(raw)) {
-      if (map.has(v)) return map.get(v);
+      if (map.has(v)) { found = map.get(v); break; }
+    }
+    if (found === null) {
+      const derived = derivePron(raw);
+      if (!derived) return null;
+      found = map === PRON_STRESS ? derived.stress : derived.tails;
+    }
+    // -ire words (fire, wires, desire, empire): CMU splits "AY ER" into two
+    // syllables, but verse almost always scans them as one.
+    if (map === PRON_STRESS && found.length > 1 && found.endsWith('0') &&
+        /ire[sd]?$/.test(String(raw).toLowerCase())) {
+      found = found.slice(0, -1);
+    }
+    return found;
+  }
+
+  // ---- Inflections of known words -----------------------------------
+  // walked, walking, walks, happier, kindness... are built from the stem's
+  // pronunciation, so the dictionary file doesn't need to list them.
+  const VOICELESS = new Set(['P', 'T', 'K', 'F', 'TH']);
+  const SIBILANT = new Set(['S', 'Z', 'SH', 'ZH', 'CH', 'JH']);
+  const VOWEL_PHONES = new Set(['AA', 'AE', 'AH', 'AO', 'AW', 'AY', 'EH', 'ER', 'EY', 'IH', 'IY', 'OW', 'OY', 'UH', 'UW']);
+  const SUFFIX_PHONES = {
+    ing: 'IH NG', ings: 'IH NG Z', er: 'ER', ers: 'ER Z', est: 'AH S T', ly: 'L IY',
+    ness: 'N AH S', ful: 'F AH L', less: 'L AH S', ment: 'M AH N T', ments: 'M AH N T S'
+  };
+  const INFLECTIONS = ['ments', 'ment', 'ings', 'ing', 'ness', 'less', 'ful', 'ers', 'est', 'er', 'ly', 'es', 'ed', 's'];
+
+  function stemCandidates(stem) {
+    // Two-letter stems are usually a dropped "e" (ow'st -> owe, not ow).
+    const out = stem.length <= 2 ? [stem + 'e', stem] : [stem, stem + 'e'];
+    if (/([b-df-hj-np-tv-z])\1$/.test(stem)) out.push(stem.slice(0, -1)); // stopped -> stop
+    if (/i$/.test(stem)) out.push(stem.slice(0, -1) + 'y');               // cried -> cry
+    return out;
+  }
+
+  function derivePron(raw) {
+    if (!PRON_STRESS) return null;
+    const w = pronVariants(raw)[0];
+    if (!w) return null;
+    // Archaic second person, one syllable: grow'st, ow'st, wander'st.
+    if (/'st$/.test(w)) {
+      for (const stem of stemCandidates(w.slice(0, -3))) {
+        if (!PRON_STRESS.has(stem)) continue;
+        return {
+          stress: PRON_STRESS.get(stem),
+          tails: (PRON_RHYME.get(stem) || []).map((t) => t + ' S T')
+        };
+      }
+      return null;
+    }
+    if (w.indexOf("'") !== -1) return null;
+    for (const suf of INFLECTIONS) {
+      if (w.length < suf.length + 2 || !w.endsWith(suf)) continue;
+      for (const stem of stemCandidates(w.slice(0, -suf.length))) {
+        if (stem.length < 2 || !PRON_STRESS.has(stem)) continue;
+        const base = PRON_STRESS.get(stem);
+        const tails = PRON_RHYME.get(stem) || [];
+        const last = (tails[0] || '').split(' ').pop();
+        let add;
+        if (suf === 's' || suf === 'es') {
+          add = SIBILANT.has(last) ? 'AH Z' : (VOICELESS.has(last) ? 'S' : 'Z');
+          if (suf === 'es' && add !== 'AH Z' && !VOWEL_PHONES.has(last)) continue; // "boxe" + s is not a thing
+        } else if (suf === 'ed') {
+          add = (last === 'T' || last === 'D') ? 'AH D' : (VOICELESS.has(last) || SIBILANT.has(last) && last !== 'Z' && last !== 'ZH' && last !== 'JH' ? 'T' : 'D');
+        } else {
+          add = SUFFIX_PHONES[suf];
+        }
+        const extra = add.split(' ').filter((p) => VOWEL_PHONES.has(p)).length;
+        return {
+          stress: base + '0'.repeat(extra),
+          tails: tails.map((t) => t + ' ' + add)
+        };
+      }
     }
     return null;
   }
@@ -764,25 +859,73 @@
   // Rhyme key from the pronunciation dictionary. Unknown words borrow the
   // pronunciation of their longest known ending (untrimmed -> trimmed),
   // since only the ending matters for rhyme.
-  function phoneticRhymeKey(word) {
-    if (!PRON_RHYME) return '';
+  function phoneticRhymeKeys(word) {
+    if (!PRON_RHYME) return [];
     const direct = lookupPron(PRON_RHYME, word);
-    if (direct) return 'P:' + direct;
-    for (const v of pronVariants(word).slice(1).concat(pronVariants(word)[0])) {
+    if (direct) return direct.map((t) => 'P:' + t);
+    const variants = pronVariants(word);
+    if (!variants.length) return []; // numbers, symbols
+    for (const v of variants.slice(1).concat(variants[0])) {
       for (let i = 1; i <= v.length - 3; i++) {
         const tail = v.slice(i);
-        if (/[aeiouy]/.test(tail) && PRON_RHYME.has(tail)) return 'P:' + PRON_RHYME.get(tail);
+        if (!/[aeiouy]/.test(tail)) break;
+        const found = PRON_RHYME.get(tail) || (derivePron(tail) || {}).tails;
+        if (found && found.length) return found.map((t) => 'P:' + t);
       }
     }
-    return '';
+    return [];
   }
 
-  // Returns the orthographic rhyme key for one word. Words sharing a key are
-  // treated as rhyming.
+  // Every rhyme key a word can have (alternate pronunciations: tears/cheers
+  // and tears/bears both rhyme).
+  function getRhymeKeys(word) {
+    const phonetic = phoneticRhymeKeys(word);
+    if (phonetic.length) return phonetic;
+    const k = getRhymeKey(word);
+    return k ? [k] : [];
+  }
+
+  function rhymesWith(a, b) {
+    const kb = getRhymeKeys(b);
+    return getRhymeKeys(a).some((k) => kb.indexOf(k) !== -1);
+  }
+
+  // How well two words rhyme: 'perfect', 'slant' (same stressed vowel, or
+  // same closing consonants: love/move, cat/hut), 'eye' (spelled alike but
+  // sound different: love/prove by ear, temperate/date), or 'none'.
+  function rhymeQuality(a, b) {
+    if (!a || !b) return 'none';
+    const la = String(a).toLowerCase(), lb = String(b).toLowerCase();
+    if (la === lb) return 'identical';
+    if (rhymesWith(a, b)) return 'perfect';
+    const pa = phoneticRhymeKeys(a), pb = phoneticRhymeKeys(b);
+    if (pa.length && pb.length) {
+      for (const x of pa) {
+        for (const y of pb) {
+          const xs = x.slice(2).split(' '), ys = y.slice(2).split(' ');
+          const sameVowel = xs[0] === ys[0];
+          const codaX = xs.slice(1).join(' '), codaY = ys.slice(1).join(' ');
+          const sameCoda = codaX && codaX === codaY;
+          if (sameVowel || sameCoda) return 'slant';
+        }
+      }
+    }
+    if (orthographicRhymeKey(a) === orthographicRhymeKey(b)) return 'eye';
+    return 'none';
+  }
+
+  // Returns the rhyme key for one word (its first pronunciation when the
+  // dictionary is loaded). Words sharing a key are treated as rhyming.
   function getRhymeKey(word) {
     if (!word) return '';
-    const phonetic = phoneticRhymeKey(word);
-    if (phonetic) return phonetic;
+    const phonetic = phoneticRhymeKeys(word);
+    if (phonetic.length) return phonetic[0];
+    return orthographicRhymeKey(word);
+  }
+
+  // Spelling-based rhyme key, used when a word has no known pronunciation.
+  function orthographicRhymeKey(word) {
+    if (!word) return '';
     let w = word.toLowerCase().replace(/[\u2019']/g, '').replace(/[^a-z]/g, '');
     if (!w) return '';
 
@@ -872,21 +1015,23 @@
     if (!lineMeters || lineMeters.length === 0) {
       return { scheme: '', letters: [], keys: [] };
     }
-    const keys = lineMeters.map((lm) => getRhymeKey(getLastWord(lm.text)));
-    const keyToLetter = new Map();
+    const words = lineMeters.map((lm) => getLastWord(lm.text));
+    const keySets = words.map((w) => getRhymeKeys(w));
+    const keys = keySets.map((k) => k[0] || '');
+    // A line joins the first earlier group it shares any rhyme key with.
+    const groups = []; // { letter, keys: Set }
     const letters = [];
-    let next = 0;
-    for (const key of keys) {
-      if (!key) { letters.push('\u2013'); continue; } // en dash for lines with no word
-      if (keyToLetter.has(key)) {
-        letters.push(keyToLetter.get(key));
-      } else {
-        const l = rhymeLetterFor(next++);
-        keyToLetter.set(key, l);
-        letters.push(l);
+    for (const ks of keySets) {
+      if (!ks.length) { letters.push('\u2013'); continue; } // en dash for lines with no word
+      let group = groups.find((g) => ks.some((k) => g.keys.has(k)));
+      if (!group) {
+        group = { letter: rhymeLetterFor(groups.length), keys: new Set() };
+        groups.push(group);
       }
+      ks.forEach((k) => group.keys.add(k));
+      letters.push(group.letter);
     }
-    return { scheme: letters.join(''), letters: letters, keys: keys };
+    return { scheme: letters.join(''), letters: letters, keys: keys, words: words };
   }
 
   // Identify well-known rhyme schemes. Returns a human-readable label or null.
@@ -913,6 +1058,7 @@
     };
     if (exact.hasOwnProperty(scheme)) return exact[scheme];
 
+    if (scheme === 'AA') return 'rhymed couplet';
     // All same letter: monorhyme
     if (/^A+$/.test(scheme)) return 'monorhyme';
 
@@ -926,6 +1072,7 @@
         seen.add(scheme[i]);
       }
       if (ok) return 'rhyming couplets';
+      if (isCoupletScheme(scheme)) return 'rhyming couplets (with an imperfect rhyme)';
     }
 
     // ABABCDCD… alternating quatrains
@@ -994,13 +1141,31 @@
   // --- Helpers used by FORM_DEFINITIONS ----------------------------------
 
   // True if the scheme is rhyming couplets (AABBCC...).
+  // Longer poems may have a few imperfect pairs (Blake's eye / symmetry):
+  // one miss is allowed per five couplets once there are at least four.
   function isCoupletScheme(scheme) {
     if (!scheme || scheme.length < 2 || scheme.length % 2 !== 0) return false;
+    const pairs = scheme.length / 2;
+    const allowed = pairs >= 4 ? Math.floor(pairs / 5) || 1 : 0;
+    let misses = 0;
     for (let i = 0; i < scheme.length; i += 2) {
-      if (scheme[i] !== scheme[i + 1]) return false;
+      if (scheme[i] !== scheme[i + 1]) { misses++; continue; }
       if (i > 0 && scheme[i] === scheme[i - 2]) return false; // different from previous couplet
     }
-    return true;
+    return misses <= allowed && misses < pairs / 2;
+  }
+
+  // How many lines miss the rhyme a target scheme asks of them (each line
+  // must rhyme with the first earlier line that shares its target letter).
+  // Letters can differ by name: ABAB matches CDCD.
+  function schemeMisses(scheme, target) {
+    if (!scheme || scheme.length !== target.length) return Infinity;
+    let misses = 0;
+    for (let i = 0; i < target.length; i++) {
+      const j = target.indexOf(target[i]);
+      if (j < i && scheme[i] !== scheme[j]) misses++;
+    }
+    return misses;
   }
 
   // True if all scheme letters are the same.
@@ -1610,6 +1775,7 @@
       if (!s || s.length !== 14) return null;
       const knownSonnets = ['ABABCDCDEFEFGG', 'ABABBCBCCDCDEE'];
       if (knownSonnets.indexOf(s) !== -1) return null;
+      if (schemeMisses(s.slice(0, 8), 'ABBAABBA') === 0) return null; // Petrarchan octave
       const hasRefrainPattern = (s[0] === s[4] && s[1] === s[5] && s[2] === s[6] &&
                                  s[11] === s[13] && s[0] !== s[1]);
       if (hasRefrainPattern) return { confidence: 'medium' };
@@ -1620,8 +1786,11 @@
       test: function (ctx) {
         if (ctx.n !== 14) return null;
         if (!ctx.counts.every(function (c) { return within(c, 10, 1); })) return null;
-        if (ctx.scheme !== 'ABABCDCDEFEFGG') return null;
-        return { confidence: 'high' };
+        // One imperfect rhyme is allowed (temperate / date in Sonnet 18 rhymed
+        // for Shakespeare but not today).
+        const misses = schemeMisses(ctx.scheme, 'ABABCDCDEFEFGG');
+        if (misses > 1) return null;
+        return { confidence: misses ? 'medium' : 'high' };
       }
     },
     { name: 'sonnet-petrarchan', label: 'Petrarchan sonnet', test: function (ctx) {
@@ -1629,14 +1798,23 @@
       if (!ctx.counts.every(function (c) { return within(c, 10, 1); })) return null;
       const variants = ['ABBAABBACDECDE', 'ABBAABBACDCDCD',
                         'ABBAABBACDCCDC', 'ABBAABBACDEDCE'];
-      if (variants.indexOf(ctx.scheme) === -1) return null;
-      return { confidence: 'high' };
+      const misses = Math.min.apply(null, variants.map(function (v) { return schemeMisses(ctx.scheme, v); }));
+      if (misses <= 1) return { confidence: misses ? 'medium' : 'high' };
+      // The octave defines the form; sestets vary widely (CDCEDE, CDDCEE...),
+      // so a clean ABBAABBA octave with fresh sestet rhymes still counts.
+      const octave = ctx.scheme.slice(0, 8), sestet = ctx.scheme.slice(8);
+      const fresh = sestet.split('').every(function (l) { return octave.indexOf(l) === -1; });
+      if (schemeMisses(octave, 'ABBAABBA') === 0 && fresh && new Set(sestet).size <= 3) {
+        return { confidence: 'medium' };
+      }
+      return null;
     }},
     { name: 'sonnet-spenserian', label: 'Spenserian sonnet', test: function (ctx) {
       if (ctx.n !== 14) return null;
       if (!ctx.counts.every(function (c) { return within(c, 10, 1); })) return null;
-      if (ctx.scheme !== 'ABABBCBCCDCDEE') return null;
-      return { confidence: 'high' };
+      const misses = schemeMisses(ctx.scheme, 'ABABBCBCCDCDEE');
+      if (misses > 1) return null;
+      return { confidence: misses ? 'medium' : 'high' };
     }},
     { name: 'sonnet-shape', label: 'Sonnet (shape only)', test: function (ctx) {
       if (ctx.n !== 14) return null;
@@ -1836,6 +2014,10 @@
     { name: 'masnavi', label: 'Masnavi (rhyming couplets, narrative scale)',
       test: function (ctx) {
         if (ctx.n < 10 || ctx.n % 2 !== 0) return null;
+        // Persian masnavi lines are long; short-line couplets (Blake) are
+        // plain rhyming couplets.
+        const avg = ctx.counts.reduce(function (a, b) { return a + b; }, 0) / ctx.n;
+        if (avg < 9) return null;
         if (isCoupletScheme(ctx.scheme)) return { confidence: 'medium' };
         return null;
       }
@@ -2021,8 +2203,8 @@
   return {
     STRESS_DICT, PATTERN_DESCRIPTIONS, KNOWN_PROPER_NOUNS, ARTICLES, FORM_DEFINITIONS,
     getWordStress, getLineStress, classifyLineMeter, namedMeter,
-    loadPronunciations, hasPronunciations,
-    countSyllables, getRhymeKey, getLastWord, detectRhymeScheme, nameRhymeScheme,
-    analyzeSourceMeter, detectPattern
+    loadPronunciations, hasPronunciations, setPronunciationMaps,
+    countSyllables, getRhymeKey, getRhymeKeys, rhymesWith, rhymeQuality, getLastWord, detectRhymeScheme, nameRhymeScheme,
+    analyzeSourceMeter, detectPattern, schemeMisses
   };
 });
