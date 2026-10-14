@@ -159,7 +159,7 @@
   function loadPronunciationsAsync(data, sliceMs) {
     const parser = pronunciationParser(data);
     if (!parser) return Promise.resolve(0);
-    const budget = sliceMs || 8;
+    const budget = sliceMs || 6;
     return new Promise((resolve) => {
       const tick = () => {
         const until = Date.now() + budget;
@@ -194,7 +194,7 @@
             stress.set(word, head.stress[parseInt(parts[1], 36)]);
             rhyme.set(word, parts[2].split('.').map((t) => head.tails[parseInt(t, 36)]));
           }
-          if (++n % 500 === 0 && Date.now() >= until) return false;
+          if (++n % 64 === 0 && Date.now() >= until) return false;
         }
         return true;
       },
