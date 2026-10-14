@@ -31,7 +31,6 @@
   let dragEl = null;
   let offsetX = 0, offsetY = 0;
   let dropIndicator = null;
-  let tempBreak = null;
 
   const $ = (id) => document.getElementById(id);
   const isMobile = () => window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
@@ -519,6 +518,9 @@
     autoScroll = null;
   }
 
+  let indicatorTimer = null;
+  let indicatorAt = null;
+
   function onDrag(e) {
     if (!dragEl) return;
     e.preventDefault();
@@ -532,8 +534,16 @@
     const inCanvas = evt.clientX >= cRect.left && evt.clientX <= cRect.right &&
                      evt.clientY >= cRect.top && evt.clientY <= cRect.bottom;
     if (inCanvas) {
-      showDropIndicator(evt.clientX, evt.clientY);
+      // At most one indicator update per ~30 ms; the last position always lands.
+      indicatorAt = { x: evt.clientX, y: evt.clientY };
+      if (!indicatorTimer) {
+        indicatorTimer = setTimeout(() => {
+          indicatorTimer = null;
+          if (dragEl && indicatorAt) showDropIndicator(indicatorAt.x, indicatorAt.y);
+        }, 30);
+      }
     } else {
+      indicatorAt = null;
       hideDropIndicator();
     }
   }
@@ -562,11 +572,12 @@
       for (const tile of tiles) {
         tile.classList.remove('selected');
         if (isTextual(tile.dataset.kind)) {
-          sendToBank(tile);
+          sendToBank(tile, true);
         } else {
           tile.remove();
         }
       }
+      sortBank();
     }
 
     if (isGroup) dragEl.remove();
@@ -690,11 +701,12 @@
         tile.classList.remove('selected');
         tile.setAttribute('aria-pressed', 'false');
         if (isTextual(tile.dataset.kind)) {
-          sendToBank(tile);
+          sendToBank(tile, true);
         } else {
           tile.remove();
         }
       }
+      sortBank();
     });
     selectionChanged();
     refreshCanvas();
@@ -715,42 +727,42 @@
 
   // ---------- INSERTION ----------
   function findInsertionRef(canvas, dropX, dropY) {
-    const tiles = Array.from(canvas.querySelectorAll('.word-tile'));
-    const brackets = Array.from(canvas.querySelectorAll('.meter-bracket'));
-    const hasBrackets = brackets.length > 0;
+    // Tiles and brackets in DOM order, which is also top-to-bottom order.
+    const candidates = Array.from(canvas.children).filter((c) =>
+      c.classList.contains('word-tile') || c.classList.contains('meter-bracket'));
+    if (!candidates.length) return { ref: null, before: false, newLine: false };
+    const hasBrackets = candidates.some((c) => c.classList.contains('meter-bracket'));
 
-    // No tiles AND no brackets → empty canvas, just append.
-    if (tiles.length === 0 && !hasBrackets) {
-      return { ref: null, before: false, newLine: false };
-    }
-
-    // The "drop 3 lines below to start a new paragraph" trick only makes sense
-    // in free-flow mode (no scaffold). With meter brackets, suppress it.
-    if (!hasBrackets && tiles.length > 0) {
-      let maxBottom = -Infinity;
-      let lineHeight = 0;
-      for (const t of tiles) {
-        const r = t.getBoundingClientRect();
-        if (r.bottom > maxBottom) maxBottom = r.bottom;
-        if (r.height > lineHeight) lineHeight = r.height;
-      }
-      const rowGap = 6; // matches CSS gap
-      const lineSpan = lineHeight + rowGap;
-      if (dropY > maxBottom + NEW_LINE_THRESHOLD_LINES * lineSpan) {
+    // The "drop 3 lines below to start a new line" trick only makes sense in
+    // free-flow mode (no scaffold). The last element sits on the bottom row.
+    if (!hasBrackets) {
+      const last = candidates[candidates.length - 1].getBoundingClientRect();
+      const lineSpan = last.height + 6; // matches CSS gap
+      if (dropY > last.bottom + NEW_LINE_THRESHOLD_LINES * lineSpan) {
         return { ref: null, before: false, newLine: true };
       }
     }
 
-    // Consider both tiles and brackets as candidate drop neighbors. Pick the
-    // closest by Euclidean distance to the drop point. For tiles the
-    // before/after decision uses X (since tiles share rows with neighbors),
-    // for brackets it uses Y (since they span the full row).
-    const candidates = tiles.concat(brackets);
-    let bestRef = candidates[0];
+    // Binary-search for the first element whose bottom is below the pointer,
+    // then only measure its neighbours: reading thousands of rects on every
+    // mouse move made big poems crawl.
+    let lo = 0, hi = candidates.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (candidates[mid].getBoundingClientRect().bottom < dropY) lo = mid + 1;
+      else hi = mid;
+    }
+    const from = Math.max(0, lo - 80);
+    const to = Math.min(candidates.length, lo + 80);
+
+    // Pick the closest by distance to the drop point. For tiles the
+    // before/after decision uses X (they share rows with neighbors); for
+    // brackets it uses Y (they span the full row).
+    let bestRef = candidates[from];
     let bestBefore = true;
     let bestDist = Infinity;
-
-    for (const item of candidates) {
+    for (let i = from; i < to; i++) {
+      const item = candidates[i];
       const r = item.getBoundingClientRect();
       const cx = r.left + r.width / 2;
       const cy = r.top + r.height / 2;
@@ -758,14 +770,9 @@
       if (dist < bestDist) {
         bestDist = dist;
         bestRef = item;
-        if (item.classList.contains('meter-bracket')) {
-          bestBefore = dropY < cy;
-        } else {
-          bestBefore = dropX < cx;
-        }
+        bestBefore = item.classList.contains('meter-bracket') ? dropY < cy : dropX < cx;
       }
     }
-
     return { ref: bestRef, before: bestBefore, newLine: false };
   }
 
@@ -786,40 +793,40 @@
   }
 
   // ---------- DROP INDICATOR ----------
+  // The indicator floats over the canvas (absolutely positioned) instead of
+  // sitting among the tiles, so moving it never reflows a big poem.
   function showDropIndicator(dropX, dropY) {
     if (isFree()) { hideDropIndicator(); return; } // tiles land where dropped
     const canvas = $('canvas');
     const result = findInsertionRef(canvas, dropX, dropY);
-
-    if (!dropIndicator) {
-      dropIndicator = document.createElement('div');
-    }
-
-    if (tempBreak && tempBreak.parentElement) tempBreak.remove();
-
-    if (result.newLine) {
-      if (!tempBreak) {
-        tempBreak = document.createElement('div');
-        tempBreak.className = 'line-break';
-      }
-      canvas.appendChild(tempBreak);
+    if (!dropIndicator) dropIndicator = document.createElement('div');
+    const c = canvas.getBoundingClientRect();
+    const ox = canvas.scrollLeft - c.left;
+    const oy = canvas.scrollTop - c.top;
+    let box; // { left, top, width, height } in canvas content coordinates
+    const ref = result.ref && result.ref.getBoundingClientRect();
+    if (result.newLine || !ref) {
+      const lastEl = Array.from(canvas.children).filter((el) => el.classList.contains('word-tile')).pop();
+      const last = lastEl ? lastEl.getBoundingClientRect() : null;
+      const top = last ? last.bottom + (last.height + 6) * 0.6 : c.top + 24;
       dropIndicator.className = 'drop-indicator horizontal';
-      canvas.appendChild(dropIndicator);
+      box = { left: (last ? c.left + 24 : c.left + 24) + ox, top: top + oy, width: 80, height: 3 };
+    } else if (result.ref.classList.contains('meter-bracket')) {
+      dropIndicator.className = 'drop-indicator horizontal';
+      box = { left: ref.left + ox, top: (result.before ? ref.top - 5 : ref.bottom + 2) + oy, width: 80, height: 3 };
     } else {
       dropIndicator.className = 'drop-indicator';
-      if (!result.ref) {
-        canvas.appendChild(dropIndicator);
-      } else if (result.before) {
-        canvas.insertBefore(dropIndicator, result.ref);
-      } else {
-        canvas.insertBefore(dropIndicator, result.ref.nextSibling);
-      }
+      const x = result.before ? ref.left - 4.5 : ref.right + 1.5;
+      box = { left: x + ox, top: ref.top + oy, width: 3, height: ref.height };
     }
+    Object.assign(dropIndicator.style, {
+      left: box.left + 'px', top: box.top + 'px', width: box.width + 'px', height: box.height + 'px'
+    });
+    if (dropIndicator.parentElement !== canvas) canvas.appendChild(dropIndicator);
   }
 
   function hideDropIndicator() {
     if (dropIndicator && dropIndicator.parentElement) dropIndicator.remove();
-    if (tempBreak && tempBreak.parentElement) tempBreak.remove();
   }
 
   // ---------- BREAK CLEANUP ----------
@@ -919,7 +926,8 @@
   }
 
   // ---------- HELPERS ----------
-  function sendToBank(tile) {
+  // noSort: the caller is moving many tiles and sorts the bank once at the end.
+  function sendToBank(tile, noSort) {
     tile.style.left = '';
     tile.style.top = '';
     delete tile.dataset.locked;
@@ -933,7 +941,7 @@
     const empty = bank.querySelector('.empty-bank');
     if (empty) empty.remove();
     bank.appendChild(tile);
-    sortBank();
+    if (!noSort) sortBank();
   }
 
   function setSortMode(mode) {
@@ -1033,7 +1041,8 @@
     // Send any existing canvas word/line tiles back to the bank (don't lose them),
     // and clear all break/bracket scaffolding.
     const existing = Array.from(canvas.querySelectorAll('.word-tile'));
-    for (const tile of existing) sendToBank(tile);
+    for (const tile of existing) sendToBank(tile, true);
+    sortBank();
     canvas.querySelectorAll('.line-break').forEach((b) => b.remove());
     canvas.querySelectorAll('.meter-bracket').forEach((b) => b.remove());
 
@@ -1249,7 +1258,7 @@
       for (const tile of tiles) {
         tile.classList.remove('selected');
         if (isTextual(tile.dataset.kind)) {
-          sendToBank(tile);
+          sendToBank(tile, true);
         } else {
           tile.remove();
         }
@@ -1654,7 +1663,20 @@
   // ---------- LIVE COMPOSITION DETECTION ----------
   // Run the same form-detection engine on the poem being composed and show
   // the result in a quiet status line under the canvas.
+  // Analysing a poem of thousands of words takes a while; for big canvases
+  // run it once things settle instead of on every change.
+  let canvasStatusTimer = null;
+
   function updateCanvasStatus() {
+    clearTimeout(canvasStatusTimer);
+    if ($('canvas').childElementCount > 400) {
+      canvasStatusTimer = setTimeout(updateCanvasStatusNow, 300);
+      return;
+    }
+    updateCanvasStatusNow();
+  }
+
+  function updateCanvasStatusNow() {
     const el = $('canvasStatus');
     if (!el) return;
     const text = arrangementToText();
@@ -1838,7 +1860,7 @@
   }
 
   let toastTimer = null;
-  function showToast(text, actionLabel, onAction) {
+  function showToast(text, actionLabel, onAction, ms) {
     const toast = $('toast');
     const btn = $('toastAction');
     $('toastText').textContent = text;
@@ -1850,7 +1872,7 @@
     void toast.offsetWidth; // restart the entrance animation
     toast.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(hideToast, actionLabel ? 7000 : 3500);
+    toastTimer = setTimeout(hideToast, ms || (actionLabel ? 7000 : 3500));
   }
 
   function hideToast() {
@@ -2216,10 +2238,11 @@
     animateTiles(() => {
       for (const tile of tiles) {
         tile.classList.remove('selected');
-        if (isTextual(tile.dataset.kind)) sendToBank(tile);
+        if (isTextual(tile.dataset.kind)) sendToBank(tile, true);
         else tile.remove();
       }
     });
+    sortBank();
     selectionChanged();
     refreshCanvas();
   }
@@ -3094,22 +3117,80 @@
   // =================================================================
   // LIBRARY
   // =================================================================
+  // The Library lives in IndexedDB (localStorage tops out around 5 MB).
+  // An in-memory copy keeps loadLibrary() synchronous; writes go through to
+  // IndexedDB in the background. Older Libraries in localStorage move over
+  // on first run.
   const LIBRARY_KEY = 'tessera:library:v1';
+  const EMPTY_LIBRARY = () => ({ currentId: null, poems: [] });
+  let libraryCache = null;
 
-  function loadLibrary() {
+  function idb() {
+    if (!idb.promise) {
+      idb.promise = new Promise((resolve, reject) => {
+        if (!window.indexedDB) { reject(new Error('no indexedDB')); return; }
+        const req = indexedDB.open('tessera', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('kv');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+    return idb.promise;
+  }
+
+  function idbRequest(mode, fn) {
+    return idb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction('kv', mode);
+      const req = fn(tx.objectStore('kv'));
+      tx.oncomplete = () => resolve(req.result);
+      tx.onerror = tx.onabort = () => reject(tx.error);
+    }));
+  }
+
+  function readLegacyLibrary() {
     try {
       const lib = JSON.parse(localStorage.getItem(LIBRARY_KEY));
       if (lib && Array.isArray(lib.poems)) return lib;
     } catch (e) {}
-    return { currentId: null, poems: [] };
+    return null;
+  }
+
+  const libraryReady = (async () => {
+    libraryCache = readLegacyLibrary() || EMPTY_LIBRARY();
+    try {
+      const stored = await idbRequest('readonly', (s) => s.get('library'));
+      if (stored && Array.isArray(stored.poems)) {
+        libraryCache = stored;
+      } else if (libraryCache.poems.length) {
+        await idbRequest('readwrite', (s) => s.put(libraryCache, 'library'));
+      }
+      try { localStorage.removeItem(LIBRARY_KEY); } catch (e) {}
+      libraryCache.backend = 'idb';
+    } catch (e) {
+      libraryCache.backend = 'local'; // private mode or blocked: stay on localStorage
+    }
+  })();
+
+  function loadLibrary() {
+    const lib = JSON.parse(JSON.stringify(libraryCache || EMPTY_LIBRARY()));
+    delete lib.backend;
+    return lib;
   }
 
   function storeLibrary(lib) {
+    const backend = libraryCache && libraryCache.backend;
+    libraryCache = JSON.parse(JSON.stringify(lib));
+    libraryCache.backend = backend;
+    if (backend === 'idb') {
+      idbRequest('readwrite', (s) => s.put(lib, 'library'))
+        .catch(() => showToast('Couldn\u2019t save to the Library \u2014 browser storage may be full.'));
+      return true;
+    }
     try {
       localStorage.setItem(LIBRARY_KEY, JSON.stringify(lib));
       return true;
     } catch (e) {
-      showToast('Browser storage is full — couldn’t save to the Library.');
+      showToast('Browser storage is full \u2014 couldn\u2019t save to the Library.');
       return false;
     }
   }
@@ -3307,6 +3388,9 @@
     commit(() => {
       clearWorkspace();
       $('input').value = '';
+      $('poemTitle').value = '';
+      $('canvas').classList.remove('free-mode');
+      blackout = { hash: '', struck: [] };
     });
     const lib = loadLibrary();
     lib.currentId = null;
@@ -4214,7 +4298,7 @@
     'clear': clearAll,
     'copy': copyArrangement,
     'find-poem': () => { openDialog('findDialog'); $('findQuery').focus(); },
-    'library': () => { renderLibrary(); openDialog('libraryDialog'); },
+    'library': () => libraryReady.then(() => { renderLibrary(); openDialog('libraryDialog'); }),
     'new-poem': newBlankPoem,
     'share': openShare,
     'copy-share': () => copyText($('shareUrl').value).then((ok) => showToast(ok ? 'Link copied.' : 'Couldn’t copy — select the link and copy it.')),
@@ -4320,6 +4404,14 @@
     const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
     if (local && !/[?&]sw=1\b/.test(location.search)) return; // keep dev reloads fresh
     navigator.serviceWorker.register('sw.js').catch(() => {});
+    // The worker serves cached files first and tells us when it fetched
+    // newer ones in the background.
+    let told = false;
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if (told || !e.data || e.data.type !== 'tessera-updated') return;
+      told = true;
+      showToast('A new version of Tessera is ready.', 'Reload', () => location.reload(), 60000);
+    });
   }
 
   // =================================================================

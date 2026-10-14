@@ -2,7 +2,7 @@
 // App files are served from cache and refreshed in the background
 // (stale-while-revalidate), so a deploy shows up on the next visit.
 // Bump CACHE when the list of core files changes.
-const CACHE = 'tessera-v1';
+const CACHE = 'tessera-v2';
 const CORE = [
   './',
   'index.html',
@@ -29,6 +29,24 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Did the server send a different version than the one we served?
+function changed(cached, fresh) {
+  const a = cached.headers.get('etag') || cached.headers.get('last-modified');
+  const b = fresh.headers.get('etag') || fresh.headers.get('last-modified');
+  return !!(a && b && a !== b);
+}
+
+let notified = false;
+function notifyUpdated(clientId) {
+  if (notified) return;
+  notified = true;
+  // Ask open pages to offer a reload; the cache is already up to date.
+  self.clients.matchAll({ type: 'window' }).then((list) => {
+    for (const c of list) c.postMessage({ type: 'tessera-updated' });
+  });
+  setTimeout(() => { notified = false; }, 60000);
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
@@ -39,7 +57,10 @@ self.addEventListener('fetch', (event) => {
       cache.match(req, { ignoreSearch: url.pathname.endsWith('/') }).then((cached) => {
         const fresh = fetch(req)
           .then((res) => {
-            if (res.ok && res.type === 'basic') cache.put(req, res.clone());
+            if (res.ok && res.type === 'basic') {
+              if (cached && changed(cached, res)) notifyUpdated(event.clientId || event.resultingClientId);
+              cache.put(req, res.clone());
+            }
             return res;
           })
           .catch(() => cached);

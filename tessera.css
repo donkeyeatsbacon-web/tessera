@@ -480,7 +480,7 @@ button {
   height: 28px;
   background: var(--accent-fill);
   border-radius: 2px;
-  align-self: center;
+  position: absolute; z-index: 5;
   pointer-events: none;
   box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.6);
   animation: pulse 1s infinite;
